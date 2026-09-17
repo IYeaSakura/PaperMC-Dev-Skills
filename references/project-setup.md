@@ -1,12 +1,15 @@
 # Project Setup Reference
 
+Target: **Paper 26.2 stable (Minecraft Java 26.2), Java 25.** Substitute the version you actually target (`26.1.2`, `26.3`, …) and the corresponding `api-version`.
+
 ## Table of Contents
 1. [Maven pom.xml (Complete)](#maven-pomxml)
-2. [Gradle Kotlin DSL (Alternative)](#gradle-kotlin-dsl)
-3. [Project Structure](#project-structure)
-4. [Build Commands](#build-commands)
-5. [Local Test Server](#local-test-server)
-6. [Dependencies Guide](#dependencies-guide)
+2. [Gradle Kotlin DSL (Recommended)](#gradle-kotlin-dsl)
+3. [Version Pinning Rules](#version-pinning)
+4. [Project Structure](#project-structure)
+5. [Build Commands](#build-commands)
+6. [Local Test Server](#local-test-server)
+7. [Dependencies Guide](#dependencies-guide)
 
 ---
 
@@ -26,14 +29,14 @@
     <packaging>jar</packaging>
 
     <name>YourPlugin</name>
-    <description>A PaperMC 26.1.2 plugin</description>
+    <description>A PaperMC 26.2 plugin</description>
 
     <properties>
-        <maven.compiler.source>25</maven.compiler.source>
-        <maven.compiler.target>25</maven.compiler.target>
+        <!-- release = enforce the Java 25 API level (source/target alone do not) -->
+        <maven.compiler.release>25</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-        <!-- Use latest stable build or range -->
-        <paper.api.version>26.1.2.build.72-stable</paper.api.version>
+        <!-- Pin an exact -stable build. Paper labels Maven ranges "Discouraged". -->
+        <paper.api.version>26.2.build.124-stable</paper.api.version>
     </properties>
 
     <repositories>
@@ -44,7 +47,7 @@
     </repositories>
 
     <dependencies>
-        <!-- Paper API (provided = server already has it) -->
+        <!-- Paper API (provided = the server already has it) -->
         <dependency>
             <groupId>io.papermc.paper</groupId>
             <artifactId>paper-api</artifactId>
@@ -79,21 +82,19 @@
 
     <build>
         <plugins>
-            <!-- Compiler plugin -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.13.0</version>
                 <configuration>
-                    <source>25</source>
-                    <target>25</target>
+                    <release>25</release>
                     <compilerArgs>
                         <arg>-parameters</arg>
                     </compilerArgs>
                 </configuration>
             </plugin>
 
-            <!-- Shade plugin (bundle dependencies into jar) -->
+            <!-- Shade plugin (bundle dependencies into the jar) -->
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-shade-plugin</artifactId>
@@ -142,34 +143,51 @@
 </project>
 ```
 
-### Using Version Ranges (for auto-updates)
+### Mapping Namespace Manifest Entry
+
+For `plugin.yml` plugins on 26.x, declaring Mojang mappings skips the one-time runtime remap and keeps you compatible across minor updates. If you use Maven, add it with `maven-jar-plugin`:
 
 ```xml
-<!-- Maven: use range to always get latest 26.1.2 build -->
-<version>[26.1.2.build,)</version>
-<!-- Or specific build -->
-<version>26.1.2.build.72-stable</version>
+<plugin>
+    <groupId>org.apache.maven.plugins</groupId>
+    <artifactId>maven-jar-plugin</artifactId>
+    <version>3.4.2</version>
+    <configuration>
+        <archive>
+            <manifestEntries>
+                <paperweight-mappings-namespace>mojang</paperweight-mappings-namespace>
+            </manifestEntries>
+        </archive>
+    </configuration>
+</plugin>
 ```
+
+(Paper plugins using `paper-plugin.yml` are assumed Mojang-mapped and do not need this.)
 
 ---
 
 ## Gradle Kotlin DSL
 
+Gradle is Paper's own build system and the only one the docs cover first-class, so prefer it for new projects.
+
 ```kotlin
 plugins {
     java
-    id("com.github.johnrengelman.shadow") version "8.1.1"
+    id("com.gradleup.shadow") version "8.3.5"   // or com.github.johnrengelman.shadow for older Gradle
 }
 
 group = "com.yourname"
 version = "1.0.0-SNAPSHOT"
 
 repositories {
+    mavenCentral()
     maven("https://repo.papermc.io/repository/maven-public/")
 }
 
 dependencies {
-    compileOnly("io.papermc.paper:paper-api:26.1.2.build.72-stable")
+    // Exact build (reproducible). The documented loose form is "26.2.build.+";
+    // keep the literal `build` token — "26.2.+" could resolve to another patch line.
+    compileOnly("io.papermc.paper:paper-api:26.2.build.124-stable")
     implementation("com.github.ben-manes.caffeine:caffeine:3.1.8")
 }
 
@@ -178,9 +196,71 @@ java {
 }
 
 tasks.withType<JavaCompile> {
+    options.release.set(25)
     options.compilerArgs.add("-parameters")
 }
+
+// Tell the server this JAR is Mojang-mapped (skip the legacy remap).
+tasks.jar {
+    manifest {
+        attributes["paperweight-mappings-namespace"] = "mojang"
+    }
+}
+tasks.named<ShadowJar>("shadowJar") {
+    manifest {
+        attributes["paperweight-mappings-namespace"] = "mojang"
+    }
+}
 ```
+
+### Running a test server from Gradle
+
+```kotlin
+plugins {
+    id("xyz.jpenilla.run-paper") version "3.0.2"
+}
+
+tasks {
+    runServer {
+        minecraftVersion("26.2")
+    }
+}
+```
+
+### NMS / internal access
+
+Use **paperweight-userdev** instead of a plain `paper-api` dependency. Current version: **2.0.0-beta.23**.
+
+```kotlin
+plugins {
+    id("io.papermc.paperweight.userdev") version "2.0.0-beta.23"
+}
+
+dependencies {
+    paperweight.paperDevBundle("26.2.build.124-stable")
+    // NOTE: remove the paper-api dependency — the dev bundle already contains it.
+}
+```
+
+See [version-matrix.md](version-matrix.md) for the mappings, `reobfJar` and dev-bundle details.
+
+---
+
+## Version Pinning
+
+| Approach | Example | Verdict |
+|----------|---------|---------|
+| Exact stable build | `26.2.build.124-stable` | **Preferred** — reproducible |
+| Gradle loose build | `26.2.build.+` | Documented, acceptable for plugins that must track fixes |
+| Maven range | `[26.2.build,)` | Paper labels this **"Maven (Discouraged)"** |
+| Guessed version | `26.2` or `1.26.2` | **Wrong** — these are not Maven artifact versions |
+
+To find the newest stable build:
+
+- `https://repo.papermc.io/repository/maven-public/io/papermc/paper/paper-api/maven-metadata.xml` (parse the version list — `<latest>`/`<release>` may point at an `-alpha`)
+- `https://fill.papermc.io/v3/projects/paper/versions/26.2/builds` (each entry has a `channel`)
+
+The old `https://api.papermc.io/v2/...` downloads API is **sunset** (HTTP 410); use the v3 API.
 
 ---
 
@@ -188,7 +268,7 @@ tasks.withType<JavaCompile> {
 
 ```
 your-plugin/
-├── pom.xml                          # Maven config
+├── pom.xml                          # Maven config (or build.gradle.kts for Gradle)
 └── src/
     └── main/
         ├── java/
@@ -231,22 +311,24 @@ mvn clean package
 ## Local Test Server
 
 ```bash
-# 1. Download PaperMC 26.1.2 from https://papermc.io/downloads
-# 2. Create start script
+# 1. Download Paper 26.2 from https://papermc.io/downloads/paper
+#    The jar is named like paper-26.2-124.jar
+# 2. Create a start script
 
-# run.sh (Linux/Mac)
+# run.sh (Linux/macOS)
 #!/bin/bash
-java -Xms4G -Xmx4G -jar paper-26.1.2.jar nogui
+java -Xms4G -Xmx4G -jar paper-26.2-124.jar nogui
 
 # run.bat (Windows)
 @echo off
-java -Xms4G -Xmx4G -jar paper-26.1.2.jar nogui
+java -Xms4G -Xmx4G -jar paper-26.2-124.jar nogui
 pause
 
-# 3. First run generates eula.txt, set eula=true
-# 4. Place plugin jar in plugins/ folder
-# 5. Start server
+# 3. First run generates eula.txt — set eula=true
+# 4. Place the plugin jar in plugins/ and restart
 ```
+
+**Java 25 is required to run the server.** Verify with `java -version` before blaming the plugin.
 
 ---
 
@@ -254,10 +336,14 @@ pause
 
 | Dependency | Purpose | Scope |
 |-----------|---------|-------|
-| `paper-api` | Core API | `provided` |
+| `paper-api` | Core API | `provided` / `compileOnly` |
 | `caffeine` | High-performance cache | `compile` (shade) |
 | `mysql-connector-j` | MySQL database | `compile` (shade) |
 | `HikariCP` | Connection pooling | `compile` (shade) |
-| `sqlite-jdbc` | SQLite (rarely needed, usually built-in) | `compile` (shade) |
+| `sqlite-jdbc` | SQLite (usually unnecessary — the driver ships with Java) | `compile` (shade) |
 
-Always shade (relocate) third-party libraries to avoid version conflicts with other plugins.
+Notes:
+
+- **Do not bundle `paper-api`** — the server provides it.
+- Always shade **and relocate** third-party libraries to avoid conflicts with other plugins.
+- `plugin.yml` `libraries:` can download Maven Central deps at runtime instead of shading, but Paper's docs flag it as currently against Maven Central's TOS; use shading for anything you ship.

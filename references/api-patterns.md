@@ -1,5 +1,7 @@
 # API Patterns Reference
 
+Targets Paper 26.x (verified against `paper-api 26.2.build.124-stable`).
+
 ## Table of Contents
 1. [Event System](#event-system)
 2. [Command System](#command-system)
@@ -9,9 +11,11 @@
 6. [Entities](#entities)
 7. [Worlds](#worlds)
 8. [Players](#players)
-9. [Configuration](#configuration)
-10. [Particles & Sounds](#particles-sounds)
-11. [Custom Events](#custom-events)
+9. [Text & Adventure 5](#text-adventure)
+10. [Configuration](#configuration)
+11. [Particles & Sounds](#particles-sounds)
+12. [Custom Events](#custom-events)
+13. [26.x Migration Notes](#migration-notes)
 
 ---
 
@@ -81,7 +85,8 @@ WorldUnloadEvent, StructureGrowEvent
 EntityDamageEvent, EntityDamageByEntityEvent, EntityDeathEvent,
 EntitySpawnEvent, EntityTargetEvent, EntityTeleportEvent, EntityExplodeEvent,
 EntityRegainHealthEvent, CreatureSpawnEvent, ProjectileLaunchEvent,
-ProjectileHitEvent, ItemSpawnEvent, ItemDespawnEvent
+ProjectileHitEvent, ItemSpawnEvent, ItemDespawnEvent,
+EntityIgniteEvent (new in 26.2, parent of CreeperIgniteEvent)
 ```
 
 **Inventory events:**
@@ -103,6 +108,39 @@ public void onEnable() {
 }
 ```
 
+### 26.2: Rescuing PersistentDataContainer Data from Removed Block Entities
+
+Paper 26.2 removed the bed block entity, and future versions will remove more. When the data fixer drops a block entity, Paper fires `AsyncServerDataFixerRemoveBlockEntityEvent` so you can salvage the PDC:
+
+```java
+@EventHandler
+public void onBlockEntityRemoved(AsyncServerDataFixerRemoveBlockEntityEvent event) {
+    if (!event.getBlockEntityType().equals(Key.key("minecraft", "bed"))) return;
+
+    PersistentDataContainerView pdc = event.getPersistentDataContainerView();
+    String myData = pdc.get(new NamespacedKey(this, "my_key"), PersistentDataType.STRING);
+    if (myData == null) return;
+
+    Key worldKey = event.getWorldKey();
+    BlockPosition pos = event.getBlockPosition();
+
+    // WARNING: this fires during chunk loading, on a worker thread OR the main
+    // thread. Do not block here — hand the work to your own executor and only
+    // touch the Bukkit API back on the main thread.
+    getServer().getAsyncScheduler().runNow(this, task ->
+        getLogger().info("Rescued " + myData + " from bed at " + pos + " in " + worldKey));
+}
+```
+
+Relevant methods: `getBlockEntityType()`, `getWorldKey()`, `getBlockPosition()`, `getPersistentDataContainerView()` (an immutable `PersistentDataContainerView`).
+
+Notes:
+
+- The event is **not** `Cancellable` — you cannot prevent the removal, only salvage the data.
+- Despite the `Async` prefix it fires during chunk loading, so it may run on a chunk-loading worker thread **or** the main thread. The Javadoc explicitly says heavy/blocking work is strongly discouraged because the main thread may be blocked waiting on those workers — hence the "enqueue and process elsewhere" shape above.
+- `Server.getWorld(Key)` is the intended way to resolve `getWorldKey()`.
+- Paper's own PDC guide does not yet mention the bed change, so don't rely on it for bed-PDC questions.
+
 ---
 
 ## Command System
@@ -115,11 +153,11 @@ public class MainCommand implements CommandExecutor {
     public boolean onCommand(CommandSender sender, Command command,
                             String label, String[] args) {
         if (!(sender instanceof Player player)) {
-            sender.sendMessage("Players only!");
+            sender.sendMessage(Component.text("Players only!"));
             return true;
         }
         if (args.length == 0) {
-            player.sendMessage("Usage: /cmd <sub>");
+            player.sendMessage(Component.text("Usage: /cmd <sub>"));
             return true;
         }
         // handle subcommands
@@ -167,57 +205,97 @@ public class MainCommand implements CommandExecutor {
     @Override
     public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
         if (args.length == 0) {
-            sender.sendMessage("Commands: " + subs.keySet());
+            sender.sendMessage(Component.text("Commands: " + subs.keySet()));
             return true;
         }
         SubCommand sub = subs.get(args[0].toLowerCase());
-        if (sub == null) { sender.sendMessage("Unknown"); return true; }
+        if (sub == null) { sender.sendMessage(Component.text("Unknown")); return true; }
         if (!sender.hasPermission(sub.getPermission())) {
-            sender.sendMessage("No permission"); return true;
+            sender.sendMessage(Component.text("No permission")); return true;
         }
         return sub.execute(sender, Arrays.copyOfRange(args, 1, args.length));
     }
 }
 ```
 
-### Paper Brigadier Commands (Advanced)
+### Paper Brigadier Commands (Recommended on 26.x)
 
 ```java
 import io.papermc.paper.command.brigadier.Commands;
-import com.mojang.brigadier.builder.LiteralArgumentBuilder;
-import com.mojang.brigadier.builder.RequiredArgumentBuilder;
+import io.papermc.paper.command.brigadier.CommandSourceStack;
 import io.papermc.paper.command.brigadier.argument.ArgumentTypes;
-import io.papermc.paper.plugin.lifecycle.event.LifecycleEventManager;
+import io.papermc.paper.command.brigadier.argument.resolvers.selector.PlayerSelectorArgumentResolver;
 import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
 
-LiteralArgumentBuilder<CommandSourceStack> cmd = Commands.literal("myplugin")
-    .requires(src -> src.getSender().hasPermission("myplugin.use"))
-    .then(Commands.literal("give")
-        .then(Commands.argument("player", ArgumentTypes.player())
-            .then(Commands.argument("item", ArgumentTypes.itemStack())
-                .executes(ctx -> {
-                    Player target = ctx.getArgument("player", PlayerSelectorArgumentResolver.class)
-                        .resolve(ctx.getSource()).getFirst();
-                    ItemStack item = ctx.getArgument("item", ItemStack.class);
-                    target.getInventory().addItem(item);
-                    return 1;
-                }))));
-
-getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event -> {
-    event.registrar().register(cmd.build());
-});
+@Override
+public void onEnable() {
+    getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event -> {
+        event.registrar().register(
+            Commands.literal("myplugin")
+                .requires(src -> src.getSender().hasPermission("myplugin.use"))
+                .then(Commands.literal("give")
+                    .then(Commands.argument("player", ArgumentTypes.player())
+                        .then(Commands.argument("item", ArgumentTypes.itemStack())
+                            .executes(ctx -> {
+                                Player target = ctx.getArgument("player", PlayerSelectorArgumentResolver.class)
+                                    .resolve(ctx.getSource()).getFirst();
+                                ItemStack item = ctx.getArgument("item", ItemStack.class);
+                                target.getInventory().addItem(item);
+                                return 1;
+                            }))))
+                .build()
+        );
+    });
+}
 ```
+
+Registering commands this way works with both `plugin.yml` and `paper-plugin.yml`. The older `com.destroystokyo.paper.brigadier.BukkitBrigadierCommand` and `io.papermc.paper.brigadier.PaperBrigadier` helpers are deprecated for removal.
 
 ---
 
 ## Scheduler
 
-### Sync Tasks (Main Thread)
+### Paper Schedulers (Preferred on 26.x)
+
+```java
+Server server = getServer();
+
+// Server-wide work on the main thread
+server.getGlobalRegionScheduler().run(plugin, task -> {
+    // main-thread work
+});
+
+// Delayed / repeating, main thread
+server.getGlobalRegionScheduler().runDelayed(plugin, task -> { /* ... */ }, 20L);
+server.getGlobalRegionScheduler().runAtFixedRate(plugin, task -> { /* ... */ }, 0L, 20L);
+
+// Location/chunk-owned work (the Folia-safe way to touch blocks and entities)
+server.getRegionScheduler().run(plugin, location, task -> {
+    location.getBlock().setType(Material.STONE);
+});
+server.getRegionScheduler().runDelayed(plugin, location, task -> { /* ... */ }, 20L);
+
+// Off-thread work: DB, file I/O, HTTP
+server.getAsyncScheduler().runNow(plugin, task -> {
+    // never touch the Bukkit API here
+});
+server.getAsyncScheduler().runAtFixedRate(plugin, task -> { /* ... */ }, 0L, 6000L, TimeUnit.MILLISECONDS);
+```
+
+| Operation | Required thread |
+|-----------|-----------------|
+| Modify blocks | Owning region thread (main on Paper) |
+| Operate entities / player inventory | Owning region thread (main on Paper) |
+| Database queries, file I/O, HTTP | Async |
+
+### BukkitRunnable / Bukkit Scheduler
+
+The classic `Bukkit.getScheduler()` API still works on regular Paper and is fine for simple plugins — but it is **not** Folia-compatible, so prefer the Paper schedulers for new code:
 
 ```java
 // Delayed task (20 ticks = 1 second)
 Bukkit.getScheduler().runTaskLater(plugin, () -> {
-    player.sendMessage("Delayed!");
+    player.sendMessage(Component.text("Delayed!"));
 }, 20L);
 
 // Repeating task
@@ -225,50 +303,34 @@ BukkitTask task = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
     // runs every second
 }, 0L, 20L);
 
-// Cancel task
+// Cancel
 task.cancel();
-// Or cancel all plugin tasks
 Bukkit.getScheduler().cancelTasks(plugin);
 ```
 
-### Async Tasks
+### Async → Sync Bridge
 
 ```java
-Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-    // DB query, file I/O, HTTP request
-});
+getServer().getAsyncScheduler().runNow(plugin, task -> {
+    PlayerData data = database.load(uuid);            // async-safe
 
-Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, () -> {
-    // Repeating async task (auto-save, etc.)
-}, 0L, 6000L); // every 5 minutes
-```
-
-### Async -> Sync Bridge
-
-```java
-// NEVER call Bukkit API from async threads directly
-Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
-    PlayerData data = database.load(uuid); // async-safe
-
-    // Switch back to main thread for Bukkit API
-    Bukkit.getScheduler().runTask(plugin, () -> {
-        player.teleport(data.getHomeLocation()); // main thread only
-        player.sendMessage("Teleported!");
+    getServer().getGlobalRegionScheduler().run(plugin, scheduledTask -> {
+        player.sendMessage(Component.text("Loaded: " + data.coins()));
     });
 });
 ```
 
-### BukkitRunnable
+### Folia Detection
 
 ```java
-new BukkitRunnable() {
-    int count = 0;
-    @Override
-    public void run() {
-        count++;
-        if (count >= 10) this.cancel();
+private boolean isFolia() {
+    try {
+        Class.forName("io.papermc.paper.threadedregions.RegionizedServer");
+        return true;
+    } catch (ClassNotFoundException e) {
+        return false;
     }
-}.runTaskTimer(plugin, 0L, 20L);
+}
 ```
 
 ---
@@ -342,6 +404,8 @@ public class GUIListener implements Listener {
 }
 ```
 
+Remember `event.getRawSlot()` can be in the player's own inventory — always check the holder, and cancel `InventoryDragEvent` as well as clicks.
+
 ### PersistentDataContainer for GUI Actions
 
 ```java
@@ -378,7 +442,6 @@ meta.lore(List.of(
 meta.addEnchant(Enchantment.SHARPNESS, 5, true);
 meta.addItemFlags(ItemFlag.HIDE_ENCHANTS, ItemFlag.HIDE_ATTRIBUTES);
 meta.setUnbreakable(true);
-meta.setCustomModelData(1001);
 
 // Store custom identifier
 meta.getPersistentDataContainer().set(
@@ -387,6 +450,19 @@ meta.getPersistentDataContainer().set(
 
 item.setItemMeta(meta);
 ```
+
+### Prefer Data Components over Legacy Custom Model Data
+
+Modern Paper exposes the vanilla item data-component system. Where 1.20.5+ plugins used `setCustomModelData(int)`, prefer the component API:
+
+```java
+import io.papermc.paper.datacomponent.DataComponentTypes;
+import io.papermc.paper.datacomponent.item.CustomModelData;
+
+item.setData(DataComponentTypes.CUSTOM_MODEL_DATA, CustomModelData.customModelData().addString("legendary"));
+```
+
+Also note `Enchantment` and friends are registry-keyed: use `Registry` lookups rather than `Enchantment.getByName(...)`.
 
 ### Check Item in Inventory
 
@@ -438,16 +514,58 @@ zombie.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, Integer.MAX_VALU
 zombie.setTarget(player);
 ```
 
-### Custom Mob with Goals (Paper API)
+### Spawn with a Consumer (pre-add configuration)
 
 ```java
-// Paper provides MobGoal API for modifying entity AI
 target.getWorld().spawn(target.getLocation(), Zombie.class, zombie -> {
     zombie.setCustomName("Custom Mob");
     zombie.setAI(true);
-    // Configure before it's added to world
+    // Configure before the entity is added to the world
 });
 ```
+
+### 26.2: Cube Mobs and `AbstractCubeMob`
+
+`MagmaCube` no longer extends `Slime`. Both now implement `org.bukkit.entity.AbstractCubeMob` (subinterfaces: `Slime`, `MagmaCube`, `SulfurCube`), which exposes:
+
+```java
+interface AbstractCubeMob extends Creature {
+    int getSize();
+    void setSize(int size);
+    boolean canWander();
+    void setWander(boolean wander);
+}
+```
+
+Update `instanceof Slime` checks to `instanceof AbstractCubeMob`, and note the consequences:
+
+- `SlimeSplitEvent#getEntity()` now returns `AbstractCubeMob`. The erased method descriptor changed, so a plugin compiled against 26.1 gets `NoSuchMethodError` on 26.2 — **recompile**.
+- Spawning was broken until 26.2 build #30 (`IllegalArgumentException: Cannot spawn an entity for org.bukkit.entity.AbstractCubeMob`, [issue #13978](https://github.com/PaperMC/Paper/issues/13978)); spawn concrete types (`EntityType.SLIME`, `EntityType.MAGMA_CUBE`) and use a build with the fix.
+
+```java
+@EventHandler
+public void onSlimeSplit(SlimeSplitEvent event) {
+    AbstractCubeMob cube = event.getEntity();
+    cube.setSize(1);                 // slime / magma cube / sulfur cube uniformly
+    // ...
+}
+```
+
+### Attribute Modifiers Are Keyed
+
+```java
+// 26.x: modifiers are identified by Key, not UUID
+AttributeInstance instance = zombie.getAttribute(Attribute.MAX_HEALTH);
+instance.addModifier(new AttributeModifier(
+    new NamespacedKey(plugin, "elite_bonus"), 20.0, AttributeModifier.Operation.ADD_NUMBER));
+instance.removeModifier(new NamespacedKey(plugin, "elite_bonus"));
+```
+
+The `UUID`-taking `AttributeModifier` constructors and `getModifier(UUID)`/`removeModifier(UUID)` are deprecated.
+
+### Teleport Flags
+
+`TeleportFlag.EntityState.RETAIN_PASSENGERS`, `RETAIN_OPEN_INVENTORY` and `RETAIN_VEHICLE` are deprecated — passengervehicle retention is default vanilla behavior now, and open inventories must be closed manually.
 
 ---
 
@@ -469,14 +587,17 @@ for (World w : Bukkit.getWorlds()) {
 }
 ```
 
+`World#setSpawnFlags(...)` and `World#getAllowAnimals()` are deprecated in 26.2 (vanilla no longer has an animal-spawn toggle) — drop those calls.
+
+⚠️ **World storage format changed in 26.1.** After a world is upgraded you cannot downgrade it. Back up worlds before first start on 26.x.
+
 ---
 
 ## Players
 
 ```java
-// Messages (MiniMessage format recommended)
-player.sendMessage("Legacy color: " + ChatColor.GREEN + "Hello");
-// Or with MiniMessage (Adventure API):
+// Messages (Adventure Component / MiniMessage recommended)
+player.sendMessage(Component.text("Hello " + player.getName(), NamedTextColor.GREEN));
 player.sendMessage(MiniMessage.miniMessage().deserialize("<green>Hello <player>",
     Placeholder.component("player", Component.text(player.getName()))));
 
@@ -505,14 +626,12 @@ player.closeInventory();
 // Effects
 player.addPotionEffect(new PotionEffect(PotionEffectType.SPEED, 200, 1));
 
-// XP
+// XP / level
 player.giveExp(100);
 player.setLevel(player.getLevel() + 1);
 
-// Game mode
+// Game mode / health / food
 player.setGameMode(GameMode.SURVIVAL);
-
-// Health/food
 player.setHealth(20);
 player.setFoodLevel(20);
 player.setSaturation(5);
@@ -521,6 +640,62 @@ player.setSaturation(5);
 player.hasPermission("node");
 player.isOp();
 ```
+
+`player.sendMessage("string")` still compiles via the legacy overload, but it bypasses component styling — pass a `Component` in new code.
+
+---
+
+## Text & Adventure 5
+
+Paper 26.2 ships **Adventure 5**. Key points for plugin authors:
+
+- **`Component` implementations are sealed.** You can no longer create a custom `Component` class; use `VirtualComponent`.
+- **`BuildableComponent` was removed.** Get a builder from `Component#toBuilder` instead.
+- **`ClickEvent` is a typed interface** and `ClickEvent.Action` is no longer an enum. `ClickEvent#value`, `ClickEvent#create(Action, String)` and custom-payload string constructors were removed — use the payload-based `create` or the direct factories such as `ClickEvent.openUrl(String)`.
+- **Legacy chat-signing API removed**: the `MessageType` enum is gone, and `Audience#sendMessage` overloads taking `Identity`/`Identified` were removed. Send signed messages instead.
+- **Boss bar `percent` API removed** — use the progress constants/methods.
+- `Component#join`/`replaceText` variants without a `JoinConfiguration`/`TextReplacementConfig` were removed; `TranslationRegistry` → `TranslationStore`; `PlainComponentSerializer` → `PlainTextComponentSerializer`; `JSONComponentConstants` → `ComponentTreeConstants`.
+- JSpecify nullness annotations replaced JetBrains annotations, and Adventure now requires **Java 21+** (fine on 26.x).
+- `adventure-extra-kotlin` and `adventure-text-serializer-gson-legacy-impl` modules were removed.
+
+Practical text pattern:
+
+```java
+private final MiniMessage mm = MiniMessage.miniMessage();
+
+Component msg = mm.deserialize("<gradient:#00ff00:#00aa00>Welcome</gradient> <gray>to the server!");
+player.sendMessage(msg);
+```
+
+For configurable messages, keep the raw MiniMessage string in `config.yml` and deserialize at send time (or cache per reload).
+
+### Books on 26.2 (BookMeta)
+
+`BookMeta` no longer implements Adventure's `Book`, so the builder and the inherited `Book` setters are gone. `BookMeta` is mutable — set its fields directly:
+
+```java
+// 26.1.x (removed in 26.2)
+BookMeta built = meta.toBuilder()
+    .title(Component.text("Guide"))
+    .author(Component.text("Me"))
+    .pages(List.of(Component.text("page 1")))
+    .build();
+
+// 26.2+
+BookMeta meta = (BookMeta) item.getItemMeta();
+meta.title(Component.text("Guide"));
+meta.author(Component.text("Me"));
+meta.pages(List.of(Component.text("page 1"), Component.text("page 2")));
+meta.addPages(Component.text("appendix"));
+item.setItemMeta(meta);
+
+// Need an Adventure Book (e.g. player.openBook(Book))?
+net.kyori.adventure.inventory.Book book = meta.asBook();
+```
+
+Available on 26.2: `pages(List<Component>)`, `pages(Component...)`, `pages()`, `page(int, Component)`, `page(int)`, `title(Component)`, `title()`, `author(Component)`, `author()`, `addPages(Component...)`, `asBook()`. Plugins that used the inherited setters compile on 26.1.x and fail at runtime with `NoSuchMethodError` on 26.2 — recompile against the 26.2 API.
+
+Code that used `PlainComponentSerializer` should use `PlainTextComponentSerializer`; `PaperComponents.gsonSerializer()` and friends are terminally deprecated — use the plain Adventure serializers.
 
 ---
 
@@ -531,8 +706,8 @@ player.isOp();
 ```java
 @Override
 public void onEnable() {
-    saveDefaultConfig();     // Copies config.yml from jar if not exists
-    saveResource("shops.yml", false); // Copy without overwriting
+    saveDefaultConfig();                 // Copies config.yml from the jar if missing
+    saveResource("shops.yml", false);    // Copy without overwriting
 }
 ```
 
@@ -599,8 +774,7 @@ public class CustomConfig {
 ```java
 // Particles
 world.spawnParticle(Particle.HEART, location, 10, 0.5, 0.5, 0.5);
-world.spawnParticle(Particle.DUST, location, 1,
-    new Particle.DustOptions(Color.RED, 1.0f));
+world.spawnParticle(Particle.DUST, location, 1, new Particle.DustOptions(Color.RED, 1.0f));
 
 // Sounds
 player.playSound(location, Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.0f);
@@ -609,6 +783,8 @@ world.playSound(location, Sound.BLOCK_NOTE_BLOCK_PLING, 1.0f, 2.0f);
 // For all nearby players
 world.playSound(location, Sound.ENTITY_GENERIC_EXPLODE, SoundCategory.BLOCKS, 1.0f, 1.0f);
 ```
+
+Sound and Particle are registry-backed types; prefer constants/registry lookups over name-based lookups (`Sound.valueOf` is legacy).
 
 ---
 
@@ -648,3 +824,22 @@ if (!event.isCancelled()) {
     // process trade
 }
 ```
+
+For configuration-driven listeners, `@EventHandler` methods work with `registerEvents`; for a listener with constructor state use an instance field (as in `new GUIListener(this)`).
+
+---
+
+## 26.x Migration Notes
+
+Checklist when bringing a plugin forward to 26.x:
+
+1. **Java 25** toolchain and `options.release = 25`.
+2. **`api-version`** set to the lowest 26.x you support (`'26.1'` or `'26.2'`).
+3. **Use `Component`s**, not `String` messages/names; move to MiniMessage for user-facing text.
+4. **Adventure 5** compiles? Fix `ClickEvent`, `BookMeta` and removed `Audience` methods (see [Text & Adventure 5](#text-adventure)).
+5. **Beds**: stop reading/writing bed PDCs; handle `AsyncServerDataFixerRemoveBlockEntityEvent`.
+6. **Replace** `BlockSoundGroup` → `SoundGroup`, `TargetBlockInfo` → `RayTraceResult`, `PointedDripstone` block data → `Speleothem`, `PinkPetals` block data → `FlowerBed`.
+7. **Drop the conversation API**; use `AsyncChatEvent` or `Dialog`.
+8. **Profile with spark** instead of Timings.
+9. **Schedule with the Paper schedulers** if you want Folia support.
+10. **Re-test world-touching code** — the 26.1 world storage format change is irreversible.

@@ -12,7 +12,7 @@
 
 ## SQLite
 
-No extra dependency needed — JDBC driver is included in Java. Store database file in plugin data folder.
+Paper ships an SQLite JDBC driver on the classpath, so you normally need no extra dependency. If you compile against it explicitly (or run on a platform without it), shade `org.xerial:sqlite-jdbc` and relocate it as usual. Store the database file in the plugin data folder.
 
 ### Connection Manager
 
@@ -198,24 +198,48 @@ public class MySQLManager {
 
 ## Async Operations
 
+> On Paper 26.x prefer the Paper schedulers — `getAsyncScheduler()` for off-thread work and
+> `getGlobalRegionScheduler()` / `getRegionScheduler()` to come back to the owning thread.
+> They behave the same on Paper and Folia; `Bukkit.getScheduler()` still works on plain Paper
+> but is not Folia-compatible.
+
 ### Pattern: Async Query + Main Thread Callback
 
 ```java
 public void loadPlayerDataAsync(UUID uuid, Consumer<PlayerData> callback) {
-    Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+    plugin.getServer().getAsyncScheduler().runNow(plugin, task -> {
         PlayerData data;
         try { data = dao.findByUuid(uuid); }
         catch (SQLException e) { data = null; }
 
         final PlayerData result = data;
-        Bukkit.getScheduler().runTask(plugin, () -> callback.accept(result));
+        plugin.getServer().getGlobalRegionScheduler().run(plugin, scheduled ->
+            callback.accept(result));
     });
 }
 
 // Usage
 loadPlayerDataAsync(player.getUniqueId(), data -> {
-    if (data != null) player.sendMessage("Coins: " + data.coins());
+    if (data != null) player.sendMessage(Component.text("Coins: " + data.coins()));
 });
+```
+
+The older `Bukkit.getScheduler()` equivalent (still valid on Paper, not on Folia):
+
+```java
+Bukkit.getScheduler().runTaskAsynchronously(plugin, () -> {
+    PlayerData data = dao.findByUuid(uuid);
+    Bukkit.getScheduler().runTask(plugin, () -> callback.accept(data));
+});
+```
+
+### Periodic Auto-Save
+
+```java
+// Paper scheduler: fixed rate in milliseconds, off-thread
+plugin.getServer().getAsyncScheduler().runAtFixedRate(plugin, task -> {
+    manager.saveAll();
+}, 0L, 5L, TimeUnit.MINUTES);
 ```
 
 ### CompletableFuture Pattern

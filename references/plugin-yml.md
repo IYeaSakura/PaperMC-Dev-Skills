@@ -3,9 +3,10 @@
 ## Table of Contents
 1. [plugin.yml (Bukkit Format)](#pluginyml-bukkit-format)
 2. [paper-plugin.yml (Paper Native Format)](#paper-plugin-yml)
-3. [Critical Rules](#critical-rules)
-4. [Choosing Between Formats](#choosing-format)
-5. [Common Mistakes](#common-mistakes)
+3. [api-version Rules](#api-version-rules)
+4. [Critical Rules](#critical-rules)
+5. [Choosing Between Formats](#choosing-format)
+6. [Common Mistakes](#common-mistakes)
 
 ---
 
@@ -19,18 +20,18 @@ Place in `src/main/resources/plugin.yml`. This is the standard format compatible
 name: YourPlugin
 version: '${project.version}'
 main: com.yourname.yourplugin.YourPlugin
-description: A PaperMC 26.1.2 plugin
+description: A PaperMC 26.2 plugin
 author: YourName
 authors: [YourName, CoAuthor]
 website: https://example.com
-api-version: '26.1.2'
+api-version: '26.2'
 load: POSTWORLD
 
 prefix: YP
 
 libraries:
-  - com.google.guava:guava:30.1.1-jre
-  - com.google.code.gson:gson:2.8.6
+  - com.google.guava:guava:33.3.1-jre
+  - com.google.code.gson:gson:2.11.0
 
 depend: [Vault, LuckPerms]
 softdepend: [PlaceholderAPI, WorldGuard]
@@ -74,7 +75,7 @@ permissions:
 | `name` | Yes | Plugin name. Only `[a-zA-Z0-9_-]+`. No spaces. |
 | `version` | Yes | Plugin version. Use `${project.version}` for Maven auto-fill. |
 | `main` | Yes | Fully qualified main class name. Must extend `JavaPlugin`. |
-| `api-version` | Yes | **MUST** be `'26.1.2'` for PaperMC 26.1.2. Controls legacy compat. |
+| `api-version` | Yes | Minecraft/Paper **API** version, e.g. `'26.2'`. See [api-version Rules](#api-version-rules). |
 | `description` | No | Short description shown in `/plugins` and info commands. |
 | `author` | No | Primary author. |
 | `authors` | No | List of authors `[A, B]`. |
@@ -82,10 +83,12 @@ permissions:
 | `website` | No | Plugin website URL. |
 | `load` | No | `STARTUP` (before worlds load) or `POSTWORLD` (default, after). |
 | `prefix` | No | Log prefix. Defaults to `name`. |
-| `libraries` | No | Maven Central deps auto-downloaded by server. |
+| `libraries` | No | Maven Central deps auto-downloaded by the server. Paper's docs warn this is currently against Maven Central's TOS — prefer shading. |
+| `default-permission` | No | Default for permission nodes without an explicit `default`. |
 | `depend` | No | Hard dependencies. Plugin fails to load if missing. |
 | `softdepend` | No | Soft dependencies. Load after if present, but not required. |
-| `loadbefore` | No | Ensure this plugin loads before listed plugins. |
+| `loadbefore` | No | Ensure this plugin loads before the listed plugins. |
+| `provides` | No | Declare that this plugin provides another plugin's functionality/alias. |
 
 ### permissions
 
@@ -102,6 +105,7 @@ permissions:
 - `default: op` = only ops have it
 - `default: false` = nobody has it by default
 - `default: not_op` = non-ops have it (rarely used)
+- `default-permission:` sets the fallback `default` for nodes that omit it
 
 ### commands
 
@@ -115,6 +119,8 @@ commands:
     permission-message: "&cNo permission!"
 ```
 
+Note: players only see commands they have permission for (`permission` filters both execution and visibility).
+
 ---
 
 ## paper-plugin.yml (Paper Native Format)
@@ -124,9 +130,10 @@ The newer Paper-native format. **Does NOT replace plugin.yml** — you can inclu
 ### Key Differences from plugin.yml
 
 1. **Dependency format is structured** (not flat lists)
-2. **Commands are NOT declared in YAML** — register via `JavaPlugin.registerCommand()` in code
+2. **Commands are NOT declared in YAML** — register them in code
 3. Supports **bootstrappers** and **loaders** for advanced classpath setup
-4. Supports `api-version: '26.1.2'`
+4. Uses the same `api-version` semantics
+5. JARs are assumed **Mojang-mapped** (no `paperweight-mappings-namespace` needed)
 
 ### Complete Example
 
@@ -136,7 +143,7 @@ version: '1.0'
 main: io.papermc.testplugin.TestPlugin
 description: Paper Test Plugin
 author: PaperMC
-api-version: '26.1.2'
+api-version: '26.2'
 load: STARTUP
 bootstrapper: io.papermc.testplugin.TestPluginBootstrap
 loader: io.papermc.testplugin.TestPluginLoader
@@ -180,39 +187,52 @@ dependencies:
 
 ### Commands in paper-plugin.yml
 
-Commands are **NOT** declared in `paper-plugin.yml`. Register them in code:
+Commands are **NOT** declared in `paper-plugin.yml`. Register them via the lifecycle API — this is the supported path on 26.x:
 
 ```java
+import io.papermc.paper.command.brigadier.Commands;
+import io.papermc.paper.plugin.lifecycle.event.types.LifecycleEvents;
+
 @Override
 public void onEnable() {
-    // Register commands programmatically
-    getServer().getCommandMap().register("yourplugin", new PluginCommand("yourcmd", this) {
-        @Override
-        public boolean execute(CommandSender sender, String label, String[] args) {
-            // command logic
-            return true;
-        }
+    getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event -> {
+        event.registrar().register(
+            Commands.literal("yourcmd")
+                .requires(source -> source.getSender().hasPermission("yourplugin.use"))
+                .executes(ctx -> {
+                    ctx.getSource().getSender().sendMessage(Component.text("Hello!"));
+                    return 1;
+                })
+                .build()
+        );
     });
 }
 ```
 
-Or use the Paper command API with Brigadier:
+The legacy `BukkitBrigadierCommand` / `PaperBrigadier` helpers are deprecated for removal on 26.x.
 
-```java
-import io.papermc.paper.command.brigadier.Commands;
-import com.mojang.brigadier.builder.LiteralArgumentBuilder;
+---
 
-LiteralArgumentBuilder<CommandSourceStack> builder = Commands.literal("yourcmd")
-    .requires(source -> source.getSender().hasPermission("yourplugin.use"))
-    .executes(ctx -> {
-        ctx.getSource().getSender().sendMessage("Hello!");
-        return 1;
-    });
+## api-version Rules
 
-getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event -> {
-    event.registrar().register(builder.build());
-});
+`api-version` is the **Minecraft/Paper API version**, never a Paper build id:
+
+```yaml
+api-version: '26.2'    # CORRECT for Paper 26.2
+api-version: '26.1'    # 26.1 API — loads on 26.1.1/26.1.2 and 26.2
+api-version: '1.21'    # legacy 1.21 line only
 ```
+
+Rules (from `org.bukkit.craftbukkit.util.ApiVersion` and `CraftMagicNumbers#checkSupported`):
+
+1. The value must be `major.minor` or `major.minor.patch` with **numeric** parts. `26.2.0`, `26.2`, `26.1.2` and `1.20.5` are all valid; `26.2.build.124-stable`, `1.26.2`, `latest` throw `IllegalArgumentException`.
+2. There is **no allow-list**. The value is only range-checked against the server's API version and the optional `settings.minimum-api` floor in `bukkit.yml` (default `none`).
+3. Newer than the server → `InvalidPluginException: Unsupported API version <value>`; the plugin does not load.
+4. Older than `settings.minimum-api` → `InvalidPluginException: Plugin API version … is lower than the minimum allowed version`.
+5. Omitted → legacy load with `Legacy plugin <name> does not specify an api-version.` and possible Legacy Material Support.
+6. The valid range per Paper's docs is **1.13 – latest Paper release**; minor versions (`x.y.z`) are supported from 1.20.5 onward.
+
+**Pick the lowest version that supports every API you call** so the plugin keeps loading across the 26.x line. See [version-matrix.md](version-matrix.md) for the full per-version table.
 
 ---
 
@@ -220,7 +240,7 @@ getLifecycleManager().registerEventHandler(LifecycleEvents.COMMANDS, event -> {
 
 ### 1. api-version is MANDATORY
 
-Without `api-version`, the server enables Legacy Material Support:
+Without `api-version`, the server treats the plugin as legacy:
 ```
 [STDERR] CraftLegacy Initializing Legacy Material Support.
 Unless you have legacy plugins and/or data this is a bug!
@@ -229,6 +249,7 @@ Unless you have legacy plugins and/or data this is a bug!
 Consequences:
 - Slower startup (seconds wasted on legacy mapping)
 - Inconsistent Material API behavior
+- `Material#isLegacy()` values appearing in your own item handling
 - Potential conflicts with other plugins
 
 ### 2. name Format
@@ -249,6 +270,7 @@ name: Your.Plugin    # dot
 - Must exist in the JAR
 - Must extend `org.bukkit.plugin.java.JavaPlugin`
 - Must have a public no-arg constructor (default is fine)
+- Must be compiled for **Java 25** on 26.x — an older target fails to load
 
 ### 4. Version Placeholder
 
@@ -257,7 +279,7 @@ With Maven resource filtering:
 version: '${project.version}'
 ```
 
-This is replaced during build with the actual version from `pom.xml`.
+This is replaced during build with the actual version from `pom.xml`. Quote it — unquoted `1.0` is parsed as a float.
 
 ---
 
@@ -265,21 +287,24 @@ This is replaced during build with the actual version from `pom.xml`.
 
 | Factor | plugin.yml | paper-plugin.yml |
 |--------|-----------|------------------|
-| Spigot compatibility | Yes | No (Paper only) |
+| Spigot/other-server compatibility | Yes | No (Paper only) |
 | Command declaration in YAML | Yes | No (code only) |
 | Advanced dependency control | No | Yes |
 | Bootstrapper/loader support | No | Yes |
+| Mapping assumption | Spigot unless the manifest says otherwise | Mojang |
 | Simplicity | Simpler | More complex |
 
-**Recommendation**: Use `plugin.yml` for most plugins. It is simpler and works across Bukkit/Spigot/Paper. Use `paper-plugin.yml` only when you need its advanced features (structured dependencies, bootstrappers) and Paper-only support is acceptable.
+**Recommendation**: use `plugin.yml` for most plugins — it is simpler and works across Bukkit/Spigot/Paper. Use `paper-plugin.yml` only when you need its advanced features (structured dependencies, bootstrappers) and Paper-only support is acceptable. Paper's own docs still describe the Paper plugin format as **experimental**.
 
 ---
 
 ## Common Mistakes
 
 1. **Forgetting `api-version`** → Legacy Material Support warning
-2. **Space in `name`** → Plugin fails to load
-3. **`main` class typo** → `ClassNotFoundException` on startup
-4. **Wrong `api-version`** → Use `'26.1.2'` for PaperMC 26.1.2, not `'1.21'`
-5. **`version` not quoted** → YAML may parse `1.0` as float. Use `'1.0'` or `"1.0"`
-6. **`plugin.yml` not in resources** → Must be at `src/main/resources/plugin.yml`
+2. **Using a Paper build id as `api-version`** (`26.2.build.124-stable`) → parsing error; use `'26.2'`
+3. **Assuming `26.1.2` ≡ `26.2`** → they are different `major.minor.patch` triples; `26.1.2` does not satisfy a 26.2 requirement
+4. **Space in `name`** → plugin fails to load
+5. **`main` class typo** → `ClassNotFoundException` on startup
+6. **`version` not quoted** → YAML may parse `1.0` as float. Use `'1.0'`
+7. **`plugin.yml` not in resources** → must be at `src/main/resources/plugin.yml`
+8. **Compiling for Java 21 or below** → `UnsupportedClassVersionError` on 26.x
