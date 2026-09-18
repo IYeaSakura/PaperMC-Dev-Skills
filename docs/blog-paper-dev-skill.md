@@ -1,14 +1,14 @@
-# Minecraft-Paper-Dev-Skills：面向 Paper 26.x 插件开发的领域知识技能包
+# 为 DeepSeek Harness 编写领域技能包：Paper 26.x 插件开发实践
 
-Paper 插件开发涉及的信息源较为分散：字段取值范围需要查阅官方 Javadoc，接口语义需要查阅服务端源码，依赖版本需要查询 Maven 元数据。当版本体系发生变更时，这些信息还需要交叉验证。
+DeepSeek Harness（下称 dsh）是 DeepSeek 开源的本地 Agent 运行框架，其技能（Skill）机制允许在会话中按需加载外部指令文档。该机制适合承载特定领域内需要精确、可溯源的知识。
 
-本文介绍一个面向该场景的领域知识技能包 **Minecraft-Paper-Dev-Skills**。该技能包将经核实的版本事实、接口变更记录与代码模式固化为结构化文档，供 AI 编程助手按需加载。仓库地址：`gitee.com/IYeaSakura/PaperMC-Dev-Skills`。
+本文介绍一个面向 Minecraft 服务端插件开发的技能包 **Minecraft-Paper-Dev-Skills**，内容覆盖 Paper 26.x 及其两个分支 Folia、Purpur。技能包共 4600 行（含双语 README），采用 `SKILL.md` 加 `references/` 的分层结构。仓库地址：`gitee.com/IYeaSakura/PaperMC-Dev-Skills`。
 
 ## 一、问题定义
 
-Minecraft Java 版的版本编号体系在 2026 年发生变更，由 `1.21.x` 形式改为 `26.x` 形式。该变更同时影响插件元数据字段取值、依赖坐标格式、构建通道命名与世界存档目录结构。
+Paper 插件开发涉及的信息源较为分散：字段取值范围需要查阅官方 Javadoc，接口语义需要查阅服务端源码，依赖版本需要查询 Maven 元数据。当版本体系发生变更时，这些信息还需要交叉验证。
 
-通用大语言模型在该领域的输出存在系统性偏差。原因是训练语料中的插件开发经验以旧版本体系为主，而模型无法判断自身知识的时效边界。该偏差在版本号、字段取值等精确信息上表现尤为明显。
+Minecraft Java 版的版本编号体系在 2026 年发生变更，由 `1.21.x` 形式改为 `26.x` 形式。该变更同时影响插件元数据字段取值、依赖坐标格式、构建通道命名与世界存档目录结构。通用大语言模型在该领域的输出因此存在系统性偏差：训练语料中的插件开发经验以旧版本体系为主，而模型无法判断自身知识的时效边界。
 
 下表对比两类信息源的输出差异：
 
@@ -19,40 +19,26 @@ Minecraft Java 版的版本编号体系在 2026 年发生变更，由 `1.21.x` �
 | 26.2 升级需修改的接口 | 提示注意 API 变更 | 列出 9 项弃用项与 3 项破坏性变更，并给出迁移代码 |
 | 当前最新稳定构建号 | 无可靠来源，可能编造 | `124-stable`，并附版本核验命令 |
 
-技能包的价值在于将上述精确信息固化为可检索的文档，使模型的输出从推测转为引用。
+技能包的作用是将上述精确信息固化为可检索的文档，使模型的输出从推测转为引用。
 
-## 二、安装与加载
+## 二、dsh 的技能加载机制
 
-该技能包面向 DeepSeek Harness（dsh）设计。dsh 是 DeepSeek 开源的本地 Agent 运行框架，文件读写操作需经授权。
+技能包的目录结构与内容组织方式由 dsh 的加载机制决定。以下三条约束来自 `@deepseek-ai/dsh-skill-filesystem` 与 `@deepseek-ai/dsh-tool-skill` 的包文档。
 
-运行环境要求 Node.js 22 及以上。
+**发现规则**。技能有两种放置形式，均位于被扫描的根目录下：
 
-```bash
-# 确认 Node 版本
-node -v
-
-# 获取技能包
-git clone https://gitee.com/IYeaSakura/PaperMC-Dev-Skills.git
-
-# 部署至用户级技能目录
-mv PaperMC-Dev-Skills ~/.dsh/skills/Minecraft-Paper-Dev-Skills
-
-# 校验目录结构
-ls ~/.dsh/skills/Minecraft-Paper-Dev-Skills
-# LICENSE  README.md  README_zh.md  SKILL.md  references
+```
+<root>/<name>/SKILL.md      目录 bundle
+<root>/<name>.md            平铺文件
 ```
 
-启动 dsh Web 界面：
+发现深度为一层，不支持嵌套的 `**/SKILL.md`。`SKILL.md` 需以 YAML frontmatter 开头，其中 `name`（kebab-case）与 `description` 为必填字段，另有可选的 `whenToUse`、`metadata` 与两个调用控制字段。
 
-```bash
-npx @deepseek-ai/dsh web
-```
+**目录与正文分离**。会话目录只包含技能的规范化名称与描述；完整指令正文仅在模型显式加载时才读取。这意味着目录条目是常驻上下文开销，正文是一次性开销。`dsh-tool-skill` 的 `catalogDescriptionMaxLength` 配置项默认值为 500，即目录中渲染的描述超过 500 字符会被截断。
 
-界面地址为 `http://127.0.0.1:3080`。工作区应指定为插件项目所在目录，Agent 的写入权限限定于该目录范围内。
+**用户级根目录**。扫描根目录按 rank 排序，用户级的 `<dshHome>/skills`（即 `~/.dsh/skills`）位于 rank 400。项目级根目录 `<projectRoot>/.dsh/skills` 的 rank 为 100，同名技能以较近的层优先。
 
-加载完成后，技能以 `minecraft-paper-dev-skills` 名称出现在会话技能列表中。
-
-技能包内容为独立 Markdown 文档，不依赖 dsh 也可直接作为技术文档阅读。
+上述机制直接约束了技能包的两个设计决策：描述必须压缩到 500 字符以内且把关键能力前置；正文必须拆分，不能全部写入索引。
 
 ## 三、结构设计
 
@@ -73,13 +59,13 @@ Minecraft-Paper-Dev-Skills/
 └── LICENSE
 ```
 
-采用索引加分册结构的原因与技能加载机制相关。`SKILL.md` 作为索引常驻上下文，`references/` 目录下的文件仅在模型需要时读取。若将全部内容写入索引，将导致每次会话均加载完整内容，增加上下文开销。
+`SKILL.md` 作为常驻索引，只保留四类高频内容：版本事实速查表、三平台选型矩阵、快速开始骨架代码、性能与安全检查清单。低频细节按主题拆分至各 reference 文件。索引与正文的比例约为 1:8。
 
-索引保留四类高频内容：版本事实速查表、三平台选型矩阵、快速开始骨架代码、性能与安全检查清单。低频细节按主题拆分至各 reference 文件。
+描述字段的取值精确定位在 498 字符，低于 500 的上限，且将"支持 Paper、Folia、Purpur 三平台"与"Java 25"置于句首，避免截断时丢失关键能力项。
 
 ## 四、内容准确性验证
 
-文档的可靠性取决于结论是否可溯源。以下列举三个典型案例。
+技能包中每条结论均可追溯至一手来源，来源优先级为：服务端源码、官方文档、元数据接口。以下列举三个典型案例。
 
 ### 4.1 `api-version` 字段取值
 
@@ -184,7 +170,41 @@ folia-supported: true
 
 文档同时包含部署相关信息：Folia 建议配置至少 16 个物理核心；线程分配参考值为 netty IO 每 200–300 名玩家约 4 线程、区块系统 IO 约 3 线程、世界预生成后区块 worker 约 2 线程；剩余核心可分配至 tick 线程（全局配置项 `threaded-regions.threads`），但线程总占用不应超过 CPU 核心数的 80%。此外，计分板 API、运行时世界创建与卸载、传送门与玩家重生相关 API 在 Folia 上不可用，`Entity#teleport` 永久不可用，应改用 `teleportAsync`。
 
-## 五、平台覆盖
+## 五、安装与加载
+
+该技能包在 dsh **0.1.5-rc.2** 下完成验证。运行环境要求 Node.js 22 及以上。
+
+```bash
+# 确认 Node 版本
+node -v
+
+# 获取技能包
+git clone https://gitee.com/IYeaSakura/PaperMC-Dev-Skills.git
+
+# 部署至用户级技能目录（对应扫描 rank 400）
+mv PaperMC-Dev-Skills ~/.dsh/skills/Minecraft-Paper-Dev-Skills
+
+# 校验目录结构
+ls ~/.dsh/skills/Minecraft-Paper-Dev-Skills
+# LICENSE  README.md  README_zh.md  SKILL.md  references
+```
+
+启动 dsh Web 界面：
+
+```bash
+npx @deepseek-ai/dsh web
+```
+
+界面地址为 `http://127.0.0.1:3080`。工作区应指定为插件项目所在目录，Agent 的写入权限限定于该目录范围内。
+
+加载完成后，技能以 `minecraft-paper-dev-skills` 名称出现在会话技能目录中。dsh 会向模型下发该目录，并提示模型先加载技能再执行任务。加载方式有两种：
+
+- 模型自行调用 `skill` 工具，以精确名称加载，获得完整指令正文；
+- 用户在输入中使用 `/minecraft-paper-dev-skills` 显式调用，指令直接注入当前轮次，无需模型选择。
+
+技能包内容为独立 Markdown 文档，不依赖 dsh 也可直接作为技术文档阅读。
+
+## 六、平台覆盖
 
 除 Paper 外，文档覆盖 Folia 与 Purpur 两个分支。
 
@@ -208,7 +228,7 @@ compileOnly("org.purpurmc.purpur:purpur-api:26.2.build.2633-stable")  // Purpur�
 
 Purpur 的注意事项为反向兼容问题。依据其官方 FAQ，`purpur.yml` 保持默认时行为与 Paper 完全一致；但配置项启用后，部分插件的原版假设将失效。文档列出了配置项与插件类型的对应关系，例如启用 `ridable` 会影响处理坐骑与载具的插件，启用 `clamp-attributes` 会影响读取 `AttributeInstance#getBaseValue()` 进行计算的插件。
 
-## 六、版本时效性维护
+## 七、版本时效性维护
 
 文档中所有版本号核实于 2026-09-17。考虑到 Paper 的版本迭代周期，文档提供了版本核验命令：
 
@@ -228,14 +248,18 @@ curl -s https://repo.purpurmc.org/snapshots/org/purpurmc/purpur/purpur-api/maven
 
 需注意 Paper 的 Maven 元数据中 `<latest>` 与 `<release>` 两个标签当前均指向 `26.3-pre-2.build.0-alpha`，该版本为 alpha 通道，并非最新稳定版。若依赖工具直接读取这两个标签进行升级，将引入预发布版本，应改为解析版本列表并筛选 `-stable` 后缀。
 
-## 七、使用建议
+## 八、使用建议与改编
 
 **提问时明确版本与平台。** 文档中部分内容按平台分别编写。指明平台后，模型将读取对应的 reference 文件。例如"Paper 26.2 环境下使用 Bukkit.getScheduler 编写的定时任务能否运行于 Folia"，比仅提问"Folia 兼容性"可获得更准确的结论。
 
-**应用变更前要求说明依据。** 文档中每条结论均可追溯至来源（服务端源码、官方 Javadoc、Maven 元数据）。可要求模型说明判断依据后再执行修改。
+**应用变更前要求说明依据。** 文档中每条结论均可追溯至来源。可要求模型说明判断依据后再执行修改。
+
+**改编为其他领域。** 该技能包的结构可直接复用于其他技术领域，核心工作有三项：将描述压缩至 500 字符内并前置关键能力；将低频细节拆分至 `references/`；为每条结论标注核实来源与日期。README 中提供了完整的改编步骤清单。
 
 ---
 
-仓库地址：`https://gitee.com/IYeaSakura/PaperMC-Dev-Skills`（GitHub 镜像 `IYeaSakura/PaperMC-Dev-Skills`）
+仓库地址：`https://gitee.com/IYeaSakura/PaperMC-Dev-Skills`（GitHub 镜像 `IYeaSakura/PaperMC-Dev-Skills`），MIT 协议。
 
 若发现结论与当前版本不符，欢迎在评论区指出。
+
+[![](https://img.shields.io/badge/powered_by-dsh-4D6BFE?style=flat-square&logo=deepseek&logoColor=white)](https://github.com/deepseek-ai/deepseek-harness)

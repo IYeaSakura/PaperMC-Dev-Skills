@@ -1,6 +1,6 @@
 ---
 name: minecraft-paper-dev-skills
-description: PaperMC 26.x (Minecraft Java 26.x) plugin development guide covering Paper, Folia and Purpur, targeting Paper 26.2 stable and Java 25. Use when the user needs to develop, code, debug, or maintain PaperMC server plugins. Covers Java 25, Maven/Gradle project setup, plugin.yml/paper-plugin.yml configuration, Bukkit/Paper API (events, commands, schedulers, GUI, items, entities, worlds), Adventure 5 / MiniMessage text, data persistence (SQLite/MySQL), performance optimization, security best practices, version compatibility, migration from 1.21.x or 26.1 to 26.2/26.3, Folia regionised multithreading (folia-supported flag, region/entity schedulers, thread ownership checks), and Purpur fork features (org.purpurmc.purpur API, purpur.yml options, permissions). Also applies when user asks about Bukkit/Spigot/Paper/Folia/Purpur plugin development, Minecraft server plugins, or migrating plugins to newer Paper versions.
+description: PaperMC 26.x plugin development for Paper, Folia and Purpur servers on Java 25. Covers version facts and build channels, plugin.yml api-version rules, Maven/Gradle setup, Bukkit API patterns, data storage, version compatibility, Folia regionised multithreading (folia-supported flag, region and entity schedulers) and Purpur fork API (org.purpurmc.purpur). Use for Minecraft server plugin development, debugging and migration, and for questions about Bukkit, Spigot, Paper, Folia or Purpur plugins.
 ---
 
 # PaperMC Plugin Development Skill
