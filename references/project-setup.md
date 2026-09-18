@@ -2,6 +2,8 @@
 
 Target: **Paper 26.2 stable (Minecraft Java 26.2), Java 25.** Substitute the version you actually target (`26.1.2`, `26.3`, …) and the corresponding `api-version`.
 
+This page sets up a **Paper** project, which is the right default: a JAR compiled against `paper-api` (using only APIs shared with the forks) also loads on **Purpur** and, with `folia-supported: true`, on **Folia**. Fork-specific setup is at the end of this file.
+
 ## Table of Contents
 1. [Maven pom.xml (Complete)](#maven-pomxml)
 2. [Gradle Kotlin DSL (Recommended)](#gradle-kotlin-dsl)
@@ -10,6 +12,7 @@ Target: **Paper 26.2 stable (Minecraft Java 26.2), Java 25.** Substitute the ver
 5. [Build Commands](#build-commands)
 6. [Local Test Server](#local-test-server)
 7. [Dependencies Guide](#dependencies-guide)
+8. [Targeting Folia or Purpur](#fork-targets)
 
 ---
 
@@ -340,10 +343,66 @@ pause
 | `caffeine` | High-performance cache | `compile` (shade) |
 | `mysql-connector-j` | MySQL database | `compile` (shade) |
 | `HikariCP` | Connection pooling | `compile` (shade) |
-| `sqlite-jdbc` | SQLite (usually unnecessary — the driver ships with Java) | `compile` (shade) |
+| `sqlite-jdbc` | SQLite (usually unnecessary — the driver ships with the server) | `compile` (shade) |
 
 Notes:
 
 - **Do not bundle `paper-api`** — the server provides it.
 - Always shade **and relocate** third-party libraries to avoid conflicts with other plugins.
 - `plugin.yml` `libraries:` can download Maven Central deps at runtime instead of shading, but Paper's docs flag it as currently against Maven Central's TOS; use shading for anything you ship.
+
+---
+
+## Targeting Folia or Purpur
+
+The most portable plugin compiles against `paper-api` and stays inside the API shared by all three servers. Only switch the dependency when you genuinely need fork-only API.
+
+### Folia
+
+```kotlin
+dependencies {
+    // Swap the coordinate; Folia is in the PaperMC repo, group dev.folia
+    compileOnly("dev.folia:folia-api:26.2.build.7-beta")
+}
+
+// Optional: NMS access for Folia
+dependencies {
+    paperweight.foliaDevBundle("26.2.build.7-beta")
+}
+```
+
+```yaml
+# plugin.yml — REQUIRED or Folia will not load the plugin at all
+folia-supported: true
+```
+
+Folia 26.2 is currently **beta**, not stable — its last fully stable line is 26.1.2. Prefer compiling against `paper-api` and using the shared schedulers unless you need a Folia-only type. Details: [folia.md](folia.md).
+
+### Purpur
+
+```kotlin
+repositories {
+    maven("https://repo.purpurmc.org/snapshots")
+}
+
+dependencies {
+    // purpur-api includes Paper + Pufferfish + Spigot + Bukkit API
+    compileOnly("org.purpurmc.purpur:purpur-api:26.2.build.2633-stable")
+}
+```
+
+```yaml
+# plugin.yml — Purpur is optional so the same JAR still loads on Paper
+softdepend: [Purpur]
+```
+
+Prefer `paper-api` plus a brand check if you only need Purpur API on some servers; import Purpur types in an isolated class so Paper never has to resolve them. Details: [purpur.md](purpur.md).
+
+### Multi-server test matrix
+
+If the plugin claims fork support, test it on each server:
+
+1. It loads (Folia is the strict one — no `folia-supported` means no load).
+2. Schedulers fire the expected number of times (region merging/splitting can change Folia's timing).
+3. Nothing throws thread-ownership / "out of region" errors on Folia.
+4. Purpur with `purpur.yml` left at defaults behaves exactly like Paper — then retest with the toggles you care about enabled.

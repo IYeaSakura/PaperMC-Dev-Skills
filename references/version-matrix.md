@@ -43,6 +43,63 @@ Minecraft 26.3 ("Wilderness Bound") shipped 2026-09-15 (dappled forest biome, po
 
 ---
 
+## Paper Family
+
+Three servers matter in practice. They share Bukkit/Paper API but differ in threading model, API surface and build cadence.
+
+| | **Paper** | **Folia** | **Purpur** |
+|---|---|---|---|
+| Relationship | Base | Paper fork (regionised multithreading) | Paper drop-in replacement (opt-in features) |
+| Main thread | Yes | **No** — one tick loop per region, in parallel | Yes (not a Folia fork) |
+| 26.2 status | `26.2.build.124-stable` | `26.2.build.7-beta` (**beta**) | `26.2.build.2633-stable` |
+| 26.3 status | alpha | — | `26.3.build.2637-experimental` |
+| Last stable line | 26.2 | 26.1.2 (build 8 stable) | 26.2 |
+| Maven group | `io.papermc.paper` | `dev.folia` | `org.purpurmc.purpur` |
+| Artifact | `paper-api` | `folia-api` | `purpur-api` |
+| Repository | repo.papermc.io | repo.papermc.io | **repo.purpurmc.org/snapshots** |
+| Pre-release channel name | `alpha` | `beta` | **`experimental`** |
+| Downloads API | `fill.papermc.io/v3` (v2 sunset) | `fill.papermc.io/v3` | `api.purpurmc.org/v2` (still v2) |
+| Extra opt-in for plugins | — | `folia-supported: true` (**required**) | none |
+| Own API namespaces | `io.papermc.paper.*` | `io.papermc.paper.threadedregions.*` | `org.purpurmc.purpur.*` |
+
+### Which target should a plugin choose?
+
+| Plugin characteristic | Paper | Purpur | Folia |
+|-----------------------|:----:|:------:|:-----:|
+| Uses only Paper schedulers + `teleportAsync` | ✅ | ✅ | ✅ (with flag) |
+| Uses `Bukkit.getScheduler()` / `BukkitRunnable` | ✅ | ✅ | ❌ |
+| Uses scoreboard API | ✅ | ✅ | ❌ broken |
+| Creates/unloads worlds at runtime | ✅ | ✅ | ❌ broken |
+| Uses `Entity#teleport` (sync) | ✅ | ✅ | ❌ use `teleportAsync` |
+| Imports `org.purpurmc.purpur.*` | ❌ | ✅ | ❌ |
+| Declares `folia-supported: true` | ignored | ignored | required to load |
+
+**Compile against Paper unless you truly need a fork API.** The four schedulers and `isOwnedByCurrentRegion` exist on Paper as well, so a Paper-only-compiled JAR is the most portable artifact. See [folia.md](folia.md) and [purpur.md](purpur.md).
+
+### Build coordinates
+
+```kotlin
+// Paper (default)
+compileOnly("io.papermc.paper:paper-api:26.2.build.124-stable")
+
+// Folia
+compileOnly("dev.folia:folia-api:26.2.build.7-beta")
+
+// Purpur (includes Paper + Pufferfish + Spigot + Bukkit API)
+repositories { maven("https://repo.purpurmc.org/snapshots") }
+compileOnly("org.purpurmc.purpur:purpur-api:26.2.build.2633-stable")
+```
+
+### Version lookup endpoints
+
+| Server | Latest stable version | Latest stable build |
+|--------|----------------------|---------------------|
+| Paper | `https://fill.papermc.io/v3/projects/paper` | `…/versions/26.2/builds` → parse for `channel == "STABLE"` |
+| Folia | `https://fill.papermc.io/v3/projects/folia` | `…/versions/26.2/builds` (currently all `BETA`) |
+| Purpur | `https://api.purpurmc.org/v2/purpur/` (`metadata.current`) | `https://api.purpurmc.org/v2/purpur/26.2` (`builds.latest`) |
+
+---
+
 ## Versioning Scheme
 
 Since 26.1, Paper artifact versions and build channels look like this:
@@ -348,7 +405,17 @@ Paper's `plugin.yml` docs state the valid range is "1.13 – latest Paper releas
 
 ## Folia
 
-Paper 26.x exposes Folia's regionised scheduler API on regular Paper too (`FallbackRegionScheduler`), so code written against `getRegionScheduler()` / `getGlobalRegionScheduler()` / `getAsyncScheduler()` runs on both.
+> Full guide: [folia.md](folia.md) — regionised threading model, all four schedulers, thread-ownership checks, the broken-API list and a migration checklist. This section is only the summary.
+
+Paper 26.x exposes Folia's regionised scheduler API on regular Paper too (`FallbackRegionScheduler`), so code written against `getRegionScheduler()` / `getGlobalRegionScheduler()` / `getAsyncScheduler()` / `Entity#getScheduler()` runs on both.
+
+Folia-specific essentials:
+
+- **Opt-in is mandatory**: without `folia-supported: true` in `plugin.yml`, Folia refuses to load the plugin.
+- **No main thread**: `Bukkit.isPrimaryThread()` is not a meaningful test; use `Bukkit.isOwnedByCurrentRegion(...)` or `Bukkit.isGlobalTickThread()`.
+- **`Entity#teleport` will never work** — use `Entity#teleportAsync`.
+- **Scoreboard API, world load/unload, portals and respawn are broken.**
+- Detect it with `ServerBuildInfo.buildInfo().isBrandCompatible(Key.key("papermc", "folia"))`.
 
 ### Folia-Safe Scheduling
 

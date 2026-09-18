@@ -1,6 +1,6 @@
 # API Patterns Reference
 
-Targets Paper 26.x (verified against `paper-api 26.2.build.124-stable`).
+Targets Paper 26.x (verified against `paper-api 26.2.build.124-stable`). Patterns here use **only APIs shared by Paper, Purpur and Folia** unless a section says otherwise — see [folia.md](folia.md) and [purpur.md](purpur.md) for fork-specific API.
 
 ## Table of Contents
 1. [Event System](#event-system)
@@ -16,6 +16,7 @@ Targets Paper 26.x (verified against `paper-api 26.2.build.124-stable`).
 11. [Particles & Sounds](#particles-sounds)
 12. [Custom Events](#custom-events)
 13. [26.x Migration Notes](#migration-notes)
+14. [Writing One Plugin for Paper + Folia + Purpur](#multi-target)
 
 ---
 
@@ -254,6 +255,8 @@ Registering commands this way works with both `plugin.yml` and `paper-plugin.yml
 ---
 
 ## Scheduler
+
+> On **Folia** these four schedulers are not a preference — they are the only correct option, because there is no main thread. See [folia.md](folia.md).
 
 ### Paper Schedulers (Preferred on 26.x)
 
@@ -614,8 +617,10 @@ player.sendActionBar(Component.text("Action bar message"));
 // Sounds
 player.playSound(player.getLocation(), Sound.ENTITY_PLAYER_LEVELUP, 1.0f, 1.0f);
 
-// Teleport
-player.teleport(new Location(world, x, y, z, yaw, pitch));
+// Teleport — async form works on Paper, Purpur and Folia alike
+player.teleportAsync(new Location(world, x, y, z, yaw, pitch)).thenAccept(success -> {
+    if (!success) getLogger().warning("Teleport failed for " + player.getName());
+});
 
 // Inventory
 player.getInventory().addItem(item);
@@ -843,3 +848,103 @@ Checklist when bringing a plugin forward to 26.x:
 8. **Profile with spark** instead of Timings.
 9. **Schedule with the Paper schedulers** if you want Folia support.
 10. **Re-test world-touching code** — the 26.1 world storage format change is irreversible.
+
+---
+
+## Writing One Plugin for Paper + Folia + Purpur
+
+A single JAR can support all three if you stay inside the shared API and handle the two fork-specific concerns (Folia threading, optional Purpur API).
+
+### 1. Detect the platform once
+
+```java
+public final class ServerFlavor {
+    private static final ServerBuildInfo INFO = ServerBuildInfo.buildInfo();
+
+    public static boolean isFolia() {
+        return INFO.isBrandCompatible(Key.key("papermc", "folia"));
+    }
+
+    public static boolean isPurpur() {
+        return INFO.brandName().equalsIgnoreCase("Purpur");
+    }
+
+    public static boolean isPaper() {
+        return !isFolia() && !isPurpur();
+    }
+
+    private ServerFlavor() {}
+}
+```
+
+### 2. Never use `Bukkit.getScheduler()` again
+
+The four Paper schedulers behave identically on Paper/Purpur (main thread) and Folia (region thread):
+
+```java
+// location-owned work — safe on all three
+server.getRegionScheduler().execute(plugin, location, () -> location.getBlock().setType(Material.STONE));
+
+// entity-owned work — follows the entity across Folia regions
+entity.getScheduler().run(plugin, task -> entity.setFireTicks(0), null);
+
+// server-wide / global state
+server.getGlobalRegionScheduler().execute(plugin, () -> world.setStorm(false));
+
+// off-thread work
+server.getAsyncScheduler().runNow(plugin, task -> saveToDatabase());
+```
+
+### 3. Replace sync teleports
+
+```java
+// Never on Folia; Entity#teleport is permanently unsupported there
+entity.teleport(destination);
+
+// Works everywhere
+entity.teleportAsync(destination);
+```
+
+### 4. Guard optional fork API behind its own class
+
+```java
+// PurpurHooks.java — only loaded when isPurpur() is true
+final class PurpurHooks {
+    static void registerPurpurListeners(JavaPlugin plugin) {
+        plugin.getServer().getPluginManager().registerEvents(new PurpurBeeListener(), plugin);
+    }
+}
+
+// in onEnable
+if (ServerFlavor.isPurpur()) {
+    try {
+        Class.forName("org.purpurmc.purpur.event.entity.BeeFoundFlowerEvent");
+        PurpurHooks.registerPurpurListeners(this);   // body references Purpur types
+    } catch (ClassNotFoundException | NoClassDefFoundError e) {
+        getLogger().warning("Purpur API unavailable; skipping Purpur integration.");
+    }
+}
+```
+
+Keeping the Purpur-typed code in `PurpurHooks` means the JVM never resolves `org.purpurmc.purpur.*` on Paper, so no `NoClassDefFoundError`.
+
+### 5. Declare capabilities in `plugin.yml`
+
+```yaml
+api-version: '26.2'
+softdepend: [Purpur]        # optional integration, Paper still loads
+folia-supported: true      # ONLY after the plugin is genuinely region-safe
+```
+
+### 6. Know what you gave up
+
+| If you use | Paper | Purpur | Folia |
+|------------|:----:|:------:|:-----:|
+| Paper schedulers (above) | ✅ | ✅ | ✅ |
+| `teleportAsync` | ✅ | ✅ | ✅ |
+| Scoreboard API | ✅ | ✅ | ❌ |
+| Runtime world create/unload | ✅ | ✅ | ❌ |
+| `Bukkit.getScheduler()` | ✅ | ✅ | ❌ |
+| Purpur events | ❌ | ✅ | ❌ |
+
+See [folia.md](folia.md) for the full broken-API list and migration checklist, and [purpur.md](purpur.md) for `purpur.yml` behaviour that can surprise a plugin assuming vanilla mechanics.

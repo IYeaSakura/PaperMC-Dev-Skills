@@ -1,13 +1,34 @@
 ---
 name: minecraft-paper-dev-skills
-description: PaperMC 26.x (Minecraft Java 26.x) plugin development guide, targeting Paper 26.2 stable and Java 25. Use when the user needs to develop, code, debug, or maintain PaperMC server plugins. Covers Java 25, Maven/Gradle project setup, plugin.yml/paper-plugin.yml configuration, Bukkit/Paper API (events, commands, schedulers, GUI, items, entities, worlds), Adventure 5 / MiniMessage text, data persistence (SQLite/MySQL), performance optimization, security best practices, version compatibility, and migration from 1.21.x or 26.1 to 26.2/26.3. Also applies when user asks about Bukkit/Spigot/Paper plugin development, Minecraft server plugins, or migrating plugins to newer Paper versions.
+description: PaperMC 26.x (Minecraft Java 26.x) plugin development guide covering Paper, Folia and Purpur, targeting Paper 26.2 stable and Java 25. Use when the user needs to develop, code, debug, or maintain PaperMC server plugins. Covers Java 25, Maven/Gradle project setup, plugin.yml/paper-plugin.yml configuration, Bukkit/Paper API (events, commands, schedulers, GUI, items, entities, worlds), Adventure 5 / MiniMessage text, data persistence (SQLite/MySQL), performance optimization, security best practices, version compatibility, migration from 1.21.x or 26.1 to 26.2/26.3, Folia regionised multithreading (folia-supported flag, region/entity schedulers, thread ownership checks), and Purpur fork features (org.purpurmc.purpur API, purpur.yml options, permissions). Also applies when user asks about Bukkit/Spigot/Paper/Folia/Purpur plugin development, Minecraft server plugins, or migrating plugins to newer Paper versions.
 ---
 
 # PaperMC Plugin Development Skill
 
-Comprehensive guide for developing PaperMC 26.x plugins using Java 25 and Maven/Gradle.
+Comprehensive guide for developing plugins for **Paper and its major forks (Folia, Purpur)** on 26.x, using Java 25 and Maven/Gradle.
 
 **Target versions (as of 2026-09-17):** Paper **26.2** = latest **stable** (Minecraft Java 26.2), Paper **26.3** = **alpha only**, Paper **26.1.x** = previous stable line. Always code against the latest stable line (26.2 today) unless the user explicitly targets another.
+
+## Server Flavors: Paper, Folia, Purpur
+
+Pick the target deliberately — the three differ substantially in what a plugin may assume.
+
+| | **Paper** | **Folia** | **Purpur** |
+|---|---|---|---|
+| What it is | The base server | Paper fork adding **regionised multithreading** | Paper **drop-in replacement** with opt-in gameplay/config patches |
+| Threading | One main thread | **No main thread**; one tick loop per region, ticking in parallel | One main thread (not a Folia fork) |
+| Latest 26.2 build | `26.2.build.124-stable` | `26.2.build.7-beta` (**beta**) | `26.2.build.2633-stable` |
+| Maven API coordinate | `io.papermc.paper:paper-api` | `dev.folia:folia-api` | `org.purpurmc.purpur:purpur-api` |
+| Plugin opt-in flag | — | `folia-supported: true` required, else the plugin is **not loaded** | — |
+| Vanilla plugins work? | Yes | **Almost none** — Folia's own README puts expectations at 0 | Yes, unchanged (features are off by default) |
+| Own API surface | Bukkit + `io.papermc.paper` | `io.papermc.paper.threadedregions.scheduler`, `Bukkit#isOwnedByCurrentRegion` | `org.purpurmc.purpur.*` events/entity/language |
+| Reference | this file + [references/api-patterns.md](references/api-patterns.md) | [references/folia.md](references/folia.md) | [references/purpur.md](references/purpur.md) |
+
+**Practical guidance:**
+
+- **Default to Paper.** Use only the four Paper schedulers (`getGlobalRegionScheduler`, `getRegionScheduler`, `getAsyncScheduler`, `Entity#getScheduler`) and `teleportAsync` instead of the legacy equivalents, and the same JAR will run on Paper **and** Folia.
+- **Folia is not "Paper with more threads".** It refuses to load plugins that don't declare `folia-supported: true`, there is no main thread, and the scoreboard API, world load/unload, portals/respawn and `Entity#teleport` are broken. See [references/folia.md](references/folia.md) before targeting it.
+- **Purpur needs no code changes** for ordinary Paper plugins: everything it adds is off unless an admin enables it in `purpur.yml`. The real risk is a plugin that assumes vanilla mechanics (rideable mobs, block behaviour, attribute values) on a server where those toggles are on. See [references/purpur.md](references/purpur.md).
 
 ## Version Facts
 
@@ -233,12 +254,14 @@ For new code prefer the Paper Brigadier API (`LifecycleEvents.COMMANDS`), which 
 
 | Operation | Required Thread |
 |-----------|----------------|
-| Modify blocks | Main (sync) |
-| Operate entities | Main (sync) |
-| Player inventory | Main (sync) |
+| Modify blocks | Owning region thread (main on Paper) |
+| Operate entities | Owning region thread (main on Paper) |
+| Player inventory | Owning region thread (main on Paper) |
 | Database queries | Async |
 | File I/O | Async |
 | HTTP requests | Async |
+
+Use the four Paper schedulers shown below — on Paper and Purpur they run on the main thread, on Folia on the owning region thread, so the same code is portable. **Folia additionally requires `folia-supported: true` in `plugin.yml`, has no main thread, and breaks scoreboards, world load/unload, portals/respawn and `Entity#teleport` (use `teleportAsync`).** Full details: [references/folia.md](references/folia.md).
 
 ```java
 // Async task, then back to main thread
@@ -329,8 +352,14 @@ There is no Paper version literally named "26.1" — the 26.1 line is `26.1.1` a
 - Paper market share is ~85–90%, making Paper-only plugins viable
 - Compiling Mojang-mapped is the recommended default on 26.x and drops the Spigot runtime remap
 
+**Fork compatibility at a glance:**
+- A plugin using only Paper schedulers + `teleportAsync` runs on Paper, Purpur **and** Folia (once you add `folia-supported: true`).
+- A plugin using `Bukkit.getScheduler()`, scoreboards, world load/unload or `Entity#teleport` runs on Paper and Purpur but **not** Folia.
+- A plugin importing `org.purpurmc.purpur.*` runs on Purpur only — keep those imports optional and brand-guarded.
+
 ## Official Resources (Always Check First)
 
+### Paper
 - **API Docs (stable)**: https://jd.papermc.io/paper/26.2/
 - **API Docs (next, alpha)**: https://jd.papermc.io/paper/26.3/
 - **Dev Docs**: https://docs.papermc.io/paper/dev/
@@ -341,6 +370,22 @@ There is no Paper version literally named "26.1" — the 26.1 line is `26.1.1` a
 - **paperweight-userdev (Gradle plugin)**: https://plugins.gradle.org/plugin/io.papermc.paperweight.userdev
 - **Discord**: https://discord.gg/papermc
 
+### Folia
+- **Dev guide (Paper + Folia)**: https://docs.papermc.io/paper/dev/folia-support
+- **Region overview / region logic**: https://docs.papermc.io/folia/reference/overview · https://docs.papermc.io/folia/reference/region-logic
+- **Repository / README (broken API list)**: https://github.com/PaperMC/Folia
+- **Downloads**: https://papermc.io/downloads/folia · https://fill.papermc.io/v3/projects/folia
+- **API artifact**: `dev.folia:folia-api` from the PaperMC repo
+
+### Purpur
+- **Docs**: https://purpurmc.org/docs/purpur/ · **Configuration**: https://purpurmc.org/docs/purpur/configuration/
+- **Permissions**: https://purpurmc.org/docs/purpur/permissions/ · **Commands**: https://purpurmc.org/docs/purpur/commands/
+- **Javadoc**: https://purpurmc.org/javadoc/
+- **Downloads API**: https://api.purpurmc.org/v2/purpur/ (v2, unlike Paper's sunset v2)
+- **Maven**: https://repo.purpurmc.org/snapshots (`org.purpurmc.purpur:purpur-api`)
+- **Repository / issues**: https://github.com/PurpurMC/Purpur · https://purpurmc.org/discord
+- **Extras / Packs**: https://purpurmc.org/docs/purpurextras/ · https://purpurmc.org/docs/purpurpacks/
+
 When you need a fact about a version, prefer the versioned Javadoc for that exact version and the Paper news post for that release — the "current" values in this file are a snapshot and new 26.x releases ship every few months.
 
 ## When to Read References
@@ -348,7 +393,9 @@ When you need a fact about a version, prefer the versioned Javadoc for that exac
 | Topic | Reference File |
 |-------|---------------|
 | Complete Maven/Gradle config, toolchain, test server | `references/project-setup.md` |
-| plugin.yml / paper-plugin.yml full spec | `references/plugin-yml.md` |
+| plugin.yml / paper-plugin.yml full spec (incl. `folia-supported`) | `references/plugin-yml.md` |
 | Events, commands, GUI, items, entities detailed examples | `references/api-patterns.md` |
 | SQLite, MySQL, caching patterns | `references/data-storage.md` |
 | Version matrix, api-version rules, migration, NMS | `references/version-matrix.md` |
+| **Folia**: regionised threading, schedulers, thread ownership, broken API | `references/folia.md` |
+| **Purpur**: fork features, `org.purpurmc.purpur` API, `purpur.yml`, permissions | `references/purpur.md` |

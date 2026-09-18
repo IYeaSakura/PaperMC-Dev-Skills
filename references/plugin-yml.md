@@ -89,6 +89,20 @@ permissions:
 | `softdepend` | No | Soft dependencies. Load after if present, but not required. |
 | `loadbefore` | No | Ensure this plugin loads before the listed plugins. |
 | `provides` | No | Declare that this plugin provides another plugin's functionality/alias. |
+| `folia-supported` | No | **Required on Folia.** `true` opts the plugin into regionised multithreading; without it Folia refuses to load the plugin. Ignored on Paper/Purpur. See [folia-support](#folia-support). |
+
+### folia-support
+
+Folia loads **only** plugins that explicitly opt in:
+
+```yaml
+name: YourPlugin
+main: com.yourname.yourplugin.YourPlugin
+api-version: '26.2'
+folia-supported: true     # Folia will not load the plugin without this
+```
+
+The flag is a *declaration*, not a compatibility switch. Folia's README is blunt about it: only set it after you have actually made the plugin region-safe (Paper schedulers instead of `Bukkit.getScheduler()`, `teleportAsync` instead of `teleport`, no scoreboard/world-load assumptions, thread-safe plugin state). Setting it on an unmodified Paper plugin produces silent data corruption rather than a clean error. Full checklist: [folia.md](folia.md).
 
 ### permissions
 
@@ -148,6 +162,7 @@ load: STARTUP
 bootstrapper: io.papermc.testplugin.TestPluginBootstrap
 loader: io.papermc.testplugin.TestPluginLoader
 defaultPerm: FALSE
+folia-supported: true
 
 permissions:
   testplugin.use:
@@ -294,7 +309,7 @@ This is replaced during build with the actual version from `pom.xml`. Quote it �
 | Mapping assumption | Spigot unless the manifest says otherwise | Mojang |
 | Simplicity | Simpler | More complex |
 
-**Recommendation**: use `plugin.yml` for most plugins — it is simpler and works across Bukkit/Spigot/Paper. Use `paper-plugin.yml` only when you need its advanced features (structured dependencies, bootstrappers) and Paper-only support is acceptable. Paper's own docs still describe the Paper plugin format as **experimental**.
+**Recommendation**: use `plugin.yml` for most plugins — it is simpler and works across Bukkit/Spigot/Paper/Purpur/Folia. Use `paper-plugin.yml` only when you need its advanced features (structured dependencies, bootstrappers) and Paper-only support is acceptable. Note that a `paper-plugin.yml`-only plugin will **not** load on Spigot (and products without Paper's new plugin loader), so it narrows your audience. Paper's own docs still describe the Paper plugin format as **experimental**.
 
 ---
 
@@ -308,3 +323,6 @@ This is replaced during build with the actual version from `pom.xml`. Quote it �
 6. **`version` not quoted** → YAML may parse `1.0` as float. Use `'1.0'`
 7. **`plugin.yml` not in resources** → must be at `src/main/resources/plugin.yml`
 8. **Compiling for Java 21 or below** → `UnsupportedClassVersionError` on 26.x
+9. **Claiming Folia support without `folia-supported: true`** → the plugin is silently not loaded at all on Folia
+10. **Setting `folia-supported: true` on an unmodified Paper plugin** → it loads and then corrupts state; only declare what you have actually made region-safe
+11. **Hard-importing `org.purpurmc.purpur.*` without `softdepend: [Purpur]` and a brand check** → `NoClassDefFoundError` takes the plugin down on Paper
