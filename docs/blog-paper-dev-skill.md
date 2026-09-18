@@ -1,85 +1,89 @@
-# 做了个 Paper 插件开发 Skill：把 4600 行避坑文档装进 DeepSeek Harness，问它问题不用再翻源码
+# Minecraft-Paper-Dev-Skills：面向 Paper 26.x 插件开发的领域知识技能包
 
-维护 Paper 插件的人大概都有过这种体验：想确认一个字段该填什么，得先翻官方 Javadoc，再翻 GitHub 上的源码，最后去 Maven 元数据里看构建号，一圈下来十几分钟就为了确认一个值。
+Paper 插件开发涉及的信息源较为分散：字段取值范围需要查阅官方 Javadoc，接口语义需要查阅服务端源码，依赖版本需要查询 Maven 元数据。当版本体系发生变更时，这些信息还需要交叉验证。
 
-我今年在这上面栽过几次，索性把核实过的结论整理成文档，做成了一个能被 AI 助手直接读取的知识包。现在问它 `api-version` 该填什么、床的 PDC 数据怎么迁移、插件能不能跑 Folia，都是直接给答案，不用再去查。
+本文介绍一个面向该场景的领域知识技能包 **Minecraft-Paper-Dev-Skills**。该技能包将经核实的版本事实、接口变更记录与代码模式固化为结构化文档，供 AI 编程助手按需加载。仓库地址：`gitee.com/IYeaSakura/PaperMC-Dev-Skills`。
 
-这个 Skill 叫 **Minecraft-Paper-Dev-Skills**，仓库在 Gitee：`gitee.com/IYeaSakura/PaperMC-Dev-Skills`。
+## 一、问题定义
 
-## 它解决的是哪类问题
+Minecraft Java 版的版本编号体系在 2026 年发生变更，由 `1.21.x` 形式改为 `26.x` 形式。该变更同时影响插件元数据字段取值、依赖坐标格式、构建通道命名与世界存档目录结构。
 
-举几个我实际问过的例子，这些答案都不是模型自己"想"出来的，是文档里固化好的：
+通用大语言模型在该领域的输出存在系统性偏差。原因是训练语料中的插件开发经验以旧版本体系为主，而模型无法判断自身知识的时效边界。该偏差在版本号、字段取值等精确信息上表现尤为明显。
 
-| 你问 | 通用 AI 常见回答 | 这个 Skill 的回答 |
+下表对比两类信息源的输出差异：
+
+| 查询内容 | 通用模型输出 | 本技能包输出 |
 |---|---|---|
-| Paper 26.2 的 `api-version` 填什么 | `26.1.2` 或 `1.21` | `'26.2'`，并解释为什么 `26.1.2` 语义上比 `26.2` 小 |
-| 我的插件能跑 Folia 吗 | 需要适配 | 先看有没有 `folia-supported: true`；没有的话 Folia 压根不会加载 |
-| 26.2 升级要改什么 | 泛泛说"注意 API 变更" | 列 9 项具体弃用项 + 3 个硬破坏，附迁移代码 |
-| 当前最新稳定构建号 | 编一个 | 124-stable，并告诉你怎么自己 `curl` 确认 |
+| Paper 26.2 的 `api-version` 取值 | `26.1.2` 或 `1.21` | `'26.2'`，依据 `ApiVersion` 解析逻辑说明 `26.1.2` 的语义低于 `26.2` |
+| 插件能否运行于 Folia | 需进行兼容性适配 | 需检查 `folia-supported` 字段，未声明时 Folia 不加载该插件 |
+| 26.2 升级需修改的接口 | 提示注意 API 变更 | 列出 9 项弃用项与 3 项破坏性变更，并给出迁移代码 |
+| 当前最新稳定构建号 | 无可靠来源，可能编造 | `124-stable`，并附版本核验命令 |
 
-差别在于**确定性**。模型对 Minecraft 插件的版本细节记忆很乱，因为这套版本体系 2026 年才换，语料里全是旧的 `1.21` 经验。文档把这些事实固化了，模型就不用猜。
+技能包的价值在于将上述精确信息固化为可检索的文档，使模型的输出从推测转为引用。
 
-## 怎么装
+## 二、安装与加载
 
-需要 Node.js 22+。Skill 是给 DeepSeek Harness（dsh）用的，dsh 是 DeepSeek 开源的本地 Agent 运行框架，读写文件需要你逐次授权。
+该技能包面向 DeepSeek Harness（dsh）设计。dsh 是 DeepSeek 开源的本地 Agent 运行框架，文件读写操作需经授权。
+
+运行环境要求 Node.js 22 及以上。
 
 ```bash
 # 确认 Node 版本
 node -v
 
-# 拉仓库
+# 获取技能包
 git clone https://gitee.com/IYeaSakura/PaperMC-Dev-Skills.git
 
-# 放进用户级 Skill 目录
+# 部署至用户级技能目录
 mv PaperMC-Dev-Skills ~/.dsh/skills/Minecraft-Paper-Dev-Skills
 
-# 确认结构
+# 校验目录结构
 ls ~/.dsh/skills/Minecraft-Paper-Dev-Skills
 # LICENSE  README.md  README_zh.md  SKILL.md  references
 ```
 
-启动：
+启动 dsh Web 界面：
 
 ```bash
 npx @deepseek-ai/dsh web
 ```
 
-浏览器打开 `http://127.0.0.1:3080`，选一个工作区（就选你放插件项目那个目录，AI 只能动这个目录里的东西），然后直接问就行。
+界面地址为 `http://127.0.0.1:3080`。工作区应指定为插件项目所在目录，Agent 的写入权限限定于该目录范围内。
 
-装好之后它会以 `minecraft-paper-dev-skills` 出现在会话的 Skill 列表里。
+加载完成后，技能以 `minecraft-paper-dev-skills` 名称出现在会话技能列表中。
 
-## 里面装了什么
+技能包内容为独立 Markdown 文档，不依赖 dsh 也可直接作为技术文档阅读。
 
-整个包 4600 行（含双语 README），结构是这样：
+## 三、结构设计
+
+技能包共 4600 行（含双语 README），文件构成如下：
 
 ```
 Minecraft-Paper-Dev-Skills/
-├── SKILL.md                     401 行   ← 常驻索引：速查表、选型矩阵、检查清单
+├── SKILL.md                     401 行   常驻索引
 ├── references/
-│   ├── api-patterns.md          952 行   ← 事件、命令、调度器、GUI、物品、实体
-│   ├── version-matrix.md        643 行   ← 版本矩阵、api-version 规则、迁移指南
-│   ├── project-setup.md         408 行   ← Maven/Gradle 模板、三平台依赖坐标
-│   ├── data-storage.md          402 行   ← SQLite、MySQL、HikariCP、Caffeine
-│   ├── plugin-yml.md            328 行   ← plugin.yml / paper-plugin.yml 字段规范
-│   ├── purpur.md                267 行   ← Purpur 独有 API 与配置影响
-│   └── folia.md                 231 行   ← Folia 线程模型与损坏 API 清单
+│   ├── api-patterns.md          952 行   事件、命令、调度器、GUI、物品、实体
+│   ├── version-matrix.md        643 行   版本矩阵、api-version 规则、迁移指南
+│   ├── project-setup.md         408 行   Maven/Gradle 配置、三平台依赖坐标
+│   ├── data-storage.md          402 行   SQLite、MySQL、HikariCP、Caffeine
+│   ├── plugin-yml.md            328 行   plugin.yml 与 paper-plugin.yml 字段规范
+│   ├── purpur.md                267 行   Purpur 专有 API 与配置影响
+│   └── folia.md                 231 行   Folia 线程模型与不可用 API 清单
 ├── README.md / README_zh.md     494 + 494 行
 └── LICENSE
 ```
 
-为什么拆成这么多文件，而不是写成一个大的 `SKILL.md`？因为 Skill 的加载机制是分层的：`SKILL.md` 会作为索引常驻上下文，`references/` 里的文件只在模型真正需要时才读取。如果 4000 行全塞进索引，每个会话都要吃满，反而变慢变贵。
+采用索引加分册结构的原因与技能加载机制相关。`SKILL.md` 作为索引常驻上下文，`references/` 目录下的文件仅在模型需要时读取。若将全部内容写入索引，将导致每次会话均加载完整内容，增加上下文开销。
 
-所以 `SKILL.md` 里只放四类东西：版本事实速查、三平台选型矩阵、快速开始骨架、性能与安全检查清单。剩下的按需展开。
+索引保留四类高频内容：版本事实速查表、三平台选型矩阵、快速开始骨架代码、性能与安全检查清单。低频细节按主题拆分至各 reference 文件。
 
-**就算你不用 dsh，这些 Markdown 直接当文档看也没问题**，`references/` 里每个文件都能独立阅读。
+## 四、内容准确性验证
 
-## 挑三个内容给你看看质量
+文档的可靠性取决于结论是否可溯源。以下列举三个典型案例。
 
-判断一份文档值不值得用，看它敢不敢给确定结论。挑三个实际内容：
+### 4.1 `api-version` 字段取值
 
-### 一、`api-version`
-
-这是最容易错的字段。Paper 解析它的代码在 `ApiVersion.java`：
+Paper 对该字段的解析逻辑位于 `org.bukkit.craftbukkit.util.ApiVersion`：
 
 ```java
 String[] versionParts = versionString.split("\\.");
@@ -92,9 +96,17 @@ int minor = parseNumber(versionParts[1]);
 int patch = versionParts.length == 3 ? parseNumber(versionParts[2]) : 0;
 ```
 
-按 `major.minor.patch` 三段解析，所以 `26.1.2` 是 major=26、minor=1、patch=2，**比 `26.2` 小**，它不是 `26.2` 的补丁版。
+解析按 `major.minor.patch` 三段进行，因此：
 
-正确值去 Paper 仓库自己的 `gradle.properties` 看：
+| 取值 | 解析结果 |
+|---|---|
+| `26.2` | major=26, minor=2, patch=0 |
+| `26.1.2` | major=26, minor=1, patch=2 |
+| `1.21` | major=1, minor=21, patch=0 |
+
+`26.1.2` 与 `26.2` 并非同一版本的补丁关系，其语义低于 `26.2`。在 26.2 服务端声明 `api-version: '26.1.2'` 虽可通过加载校验，但若插件调用了 26.2 新增接口，该声明将导致服务端跳过应当执行的版本检查。
+
+Paper 仓库的 `gradle.properties` 给出了该字段的期望取值：
 
 ```properties
 mcVersion=26.2
@@ -102,13 +114,15 @@ apiVersion=26.2   # the current API version for use in (paper-)plugin.yml files
 channel=STABLE
 ```
 
-**26.2 服务器写 `'26.2'`。** 想同时兼容 26.1 和 26.2 就写 `'26.1'`，前提是没用到 26.2 新增的 API。
+结论：26.2 服务端应声明 `'26.2'`。若需同时兼容 26.1 与 26.2，可声明 `'26.1'`，前提是未使用 26.2 新增接口。
 
-### 二、26.2 的三个硬破坏
+补充约束：服务端 `settings.minimum-api`（默认 `none`）为取值下限，低于该值的插件将被拒绝加载。
 
-文档里 26.1 → 26.2 的变更分了两类：9 项弃用（有替代方案，能编译但该改）和 3 项硬破坏（直接编不过或运行时报错）。
+### 4.2 26.1 至 26.2 的破坏性变更
 
-硬破坏之一是床。26.2 里床变回普通方块，**不能再存 `PersistentDataContainer`**，`org.bukkit.block.Bed` 被标弃用且 `setColor()` 直接抛异常。之前存过数据的话得在数据修复时抢救：
+文档将该区间的变更分为两类：9 项弃用项（保留可用替代方案，编译通过但应修改）与 3 项破坏性变更（编译失败或运行时报错）。
+
+破坏性变更之一为床的方块实体移除。26.2 中床变为普通方块，不再支持 `PersistentDataContainer`。`org.bukkit.block.Bed` 已标记弃用，`setColor()` 抛出 `UnsupportedOperationException`。原有数据需在数据修复阶段迁移：
 
 ```java
 @EventHandler
@@ -119,85 +133,87 @@ public void onBlockEntityRemoved(AsyncServerDataFixerRemoveBlockEntityEvent even
     String myData = pdc.get(new NamespacedKey(this, "my_key"), PersistentDataType.STRING);
     if (myData == null) return;
 
-    // 这个事件在区块加载流程里触发，可能在 worker 线程
-    // 重活别放这，丢给自己的线程池
+    // 该事件在区块加载流程中触发，可能位于 worker 线程
+    // 耗时操作应移交独立线程池
     getServer().getAsyncScheduler().runNow(this, task ->
-        getLogger().info("抢救出数据: " + myData));
+        getLogger().info("迁移数据: " + myData));
 }
 ```
 
-另一个是 Adventure 5 造成的 `BookMeta` 变更，这是真实线上事故的来源：
+需注意该事件虽以 `Async` 为前缀，实际执行位置为区块加载流程，可能位于 worker 线程或主线程。Javadoc 明确说明阻塞操作将影响服务端运行，主线程可能因此等待 worker 完成。
+
+破坏性变更之二为 Adventure 5 引起的 `BookMeta` 接口变更，该变更会导致运行期 `NoSuchMethodError`：
 
 ```java
-// 26.1 写法，26.2 编译不过
+// 26.1 写法，26.2 无法编译
 BookMeta built = meta.toBuilder().title(Component.text("指南")).build();
 
-// 26.2：BookMeta 本身可变
+// 26.2：BookMeta 本身可变，直接赋值
 BookMeta meta = (BookMeta) item.getItemMeta();
 meta.title(Component.text("指南"));
 meta.pages(List.of(Component.text("第一页"), Component.text("第二页")));
 item.setItemMeta(meta);
 
-// 需要 Adventure 的 Book 对象时
+// 需要 Adventure 的 Book 对象时（如 openBook）
 net.kyori.adventure.inventory.Book book = meta.asBook();
 ```
 
-第三个是方块怪。`MagmaCube` 不再继承 `Slime`，两者都改成实现 `AbstractCubeMob`。`SlimeSplitEvent#getEntity()` 的返回类型变了，这是二进制破坏，26.1 编译的插件跑 26.2 会 `NoSuchMethodError`，必须重编。
+破坏性变更之三为方块怪的继承关系调整。`MagmaCube` 不再继承 `Slime`，两者均改为实现 `AbstractCubeMob`。`SlimeSplitEvent#getEntity()` 的返回类型随之变更，构成二进制破坏：在 26.1 编译的插件运行于 26.2 时将抛出 `NoSuchMethodError`，必须重新编译。
 
 ```java
-// 老代码
+// 原实现
 if (entity instanceof Slime slime) { ... }
 
-// 26.2
+// 26.2 实现
 if (entity instanceof AbstractCubeMob cube) {
-    cube.setSize(1);   // 史莱姆、岩浆怪、硫方块统一处理
+    cube.setSize(1);   // 统一处理史莱姆、岩浆怪与硫方块
 }
 ```
 
-### 三、Folia 的 `folia-supported` 是开关不是声明
+### 4.3 Folia 的 `folia-supported` 字段语义
 
-这条我一开始也理解错了，以为是个"我兼容 Folia"的标记。
+Folia 是 PaperMC 的区域化多线程分支，将世界划分为多个独立区域并行 tick。该字段的性质为加载开关，而非兼容性声明。
 
-Folia 是 PaperMC 的区域化多线程分支，把世界切成多个区域并行 tick。它的 README 写得很直白：**只有显式标记过的插件才会被加载**。也就是说没有这一行，插件列表里根本不会出现，不是警告也不是降级运行：
+依据 Folia 官方 README，未被显式标记的插件不会加载：
 
 ```yaml
 folia-supported: true
 ```
 
-所以从 Paper 换到 Folia 会发生什么就很清楚了：大部分插件"消失"。Folia 官方对未修改的 Paper 插件给出的兼容期望是 0。
+未声明该字段时，插件不会出现在服务端插件列表中，不产生警告，也不降级运行。因此从 Paper 迁移至 Folia 时，多数插件将不再加载。Folia 官方对未修改的 Paper 插件给出的兼容性预期为 0。
 
-文档里还有服主关心的部分：Folia 建议至少 16 个物理核心，线程分配上 netty IO 每 200–300 人约 4 线程、区块 IO 约 3、预生成过世界的话区块 worker 约 2，剩下的给 tick 线程但总占用别超 CPU 核数的 80%。另外计分板 API、运行时创建/卸载世界、传送门和重生相关 API 在 Folia 上都是坏的，`Entity#teleport` 永久不可用只能 `teleportAsync`。
+文档同时包含部署相关信息：Folia 建议配置至少 16 个物理核心；线程分配参考值为 netty IO 每 200–300 名玩家约 4 线程、区块系统 IO 约 3 线程、世界预生成后区块 worker 约 2 线程；剩余核心可分配至 tick 线程（全局配置项 `threaded-regions.threads`），但线程总占用不应超过 CPU 核心数的 80%。此外，计分板 API、运行时世界创建与卸载、传送门与玩家重生相关 API 在 Folia 上不可用，`Entity#teleport` 永久不可用，应改用 `teleportAsync`。
 
-## 覆盖的三个平台
+## 五、平台覆盖
 
-Paper 之外还覆盖了 Folia 和 Purpur，因为现在开服选型绕不开这两个：
+除 Paper 外，文档覆盖 Folia 与 Purpur 两个分支。
 
 | 项目 | Paper | Folia | Purpur |
 |---|---|---|---|
 | 线程模型 | 单主线程 | 无主线程，按区域并行 | 单主线程 |
 | 最新 26.2 构建 | 124-stable | 7-beta | 2633-stable |
-| 预发布通道名 | alpha | beta | experimental |
-| 插件需要额外声明 | 否 | `folia-supported: true` | 否 |
-| 普通 Paper 插件能否加载 | 可以 | 基本不行 | 可以，行为不变 |
+| 预发布通道命名 | alpha | beta | experimental |
+| 插件声明要求 | 无 | `folia-supported: true` | 无 |
+| 未修改 Paper 插件可用性 | 可用 | 基本不可用 | 可用，行为一致 |
 
-依赖坐标也是三套：
+三个平台的依赖坐标不同：
 
 ```kotlin
-compileOnly("io.papermc.paper:paper-api:26.2.build.124-stable")            // Paper
-compileOnly("dev.folia:folia-api:26.2.build.7-beta")                      // Folia，group 不是 io.papermc.paper
-compileOnly("org.purpurmc.purpur:purpur-api:26.2.build.2633-stable")      // Purpur，仓库在 repo.purpurmc.org
+compileOnly("io.papermc.paper:paper-api:26.2.build.124-stable")        // Paper
+compileOnly("dev.folia:folia-api:26.2.build.7-beta")                  // Folia，groupId 为 dev.folia
+compileOnly("org.purpurmc.purpur:purpur-api:26.2.build.2633-stable")  // Purpur，仓库为 repo.purpurmc.org
 ```
 
-文档里给了一个跨平台策略：**只要全程用 Paper 的四个调度器（`getGlobalRegionScheduler`、`getRegionScheduler`、`getAsyncScheduler`、`Entity#getScheduler`）加上 `teleportAsync`，一份 JAR 就能同时跑在三个平台上**，编译目标仍然是 `paper-api`。这四套调度器 Paper 上也有，行为是投递到主线程。
+文档给出了单 JAR 跨平台方案：统一使用 Paper 提供的四个调度器（`getGlobalRegionScheduler`、`getRegionScheduler`、`getAsyncScheduler`、`Entity#getScheduler`）与 `teleportAsync`，编译目标保持为 `paper-api`。上述调度器在 Paper 上同样可用，执行时投递至主线程；在 Folia 上投递至对应区域线程。
 
-Purpur 那边要注意的是反向问题：它默认行为和 Paper 完全一样（官方 FAQ 明确说了，`purpur.yml` 不改就是 Paper），但**服主把开关打开之后**，某些插件假设就会失效。文档列了对应关系，比如开 `ridable` 会影响处理坐骑和载具的插件，开 `clamp-attributes` 会影响读 `AttributeInstance#getBaseValue()` 做计算的插件。所以插件报 bug 时先问一句服主 `purpur.yml` 改了什么。
+Purpur 的注意事项为反向兼容问题。依据其官方 FAQ，`purpur.yml` 保持默认时行为与 Paper 完全一致；但配置项启用后，部分插件的原版假设将失效。文档列出了配置项与插件类型的对应关系，例如启用 `ridable` 会影响处理坐骑与载具的插件，启用 `clamp-attributes` 会影响读取 `AttributeInstance#getBaseValue()` 进行计算的插件。
 
-## 文档会过期，所以留了复查方法
+## 六、版本时效性维护
 
-上面所有版本号核实于 **2026-09-17**。Paper 几个月一个版本，所以我把核对方法也写进文档了，你可以自己确认：
+文档中所有版本号核实于 2026-09-17。考虑到 Paper 的版本迭代周期，文档提供了版本核验命令：
 
 ```bash
-# Paper：找最新 stable
+# Paper：查询最新 stable 构建
 curl -s https://repo.papermc.io/repository/maven-public/io/papermc/paper/paper-api/maven-metadata.xml \
   | grep -o '<version>26\.[0-9.]*build\.[0-9]*-stable</version>' | tail -n 3
 
@@ -210,16 +226,16 @@ curl -s https://repo.purpurmc.org/snapshots/org/purpurmc/purpur/purpur-api/maven
   | grep -o '<version>[^<]*</version>' | tail -n 3
 ```
 
-顺便说个坑：Paper 那份 Maven 元数据里，`<latest>` 和 `<release>` 两个标签当前都指向 `26.3-pre-2.build.0-alpha`，是 **alpha 版**，不代表最新稳定版。用工具自动读这两个标签升级依赖会把预发布版拉进来，得自己筛 `-stable`。
+需注意 Paper 的 Maven 元数据中 `<latest>` 与 `<release>` 两个标签当前均指向 `26.3-pre-2.build.0-alpha`，该版本为 alpha 通道，并非最新稳定版。若依赖工具直接读取这两个标签进行升级，将引入预发布版本，应改为解析版本列表并筛选 `-stable` 后缀。
 
-## 两个使用建议
+## 七、使用建议
 
-**问的时候带上具体版本和场景。** 比如"Paper 26.2 上，我用 Bukkit.getScheduler 写的定时任务能跑 Folia 吗"比"Folia 兼容性"能得到更准的答案。文档里有些内容是分平台写的，说清楚平台它会直接读对应的 reference。
+**提问时明确版本与平台。** 文档中部分内容按平台分别编写。指明平台后，模型将读取对应的 reference 文件。例如"Paper 26.2 环境下使用 Bukkit.getScheduler 编写的定时任务能否运行于 Folia"，比仅提问"Folia 兼容性"可获得更准确的结论。
 
-**改动代码前先让它解释依据。** 文档里每条结论都能追到来源（源码、官方 Javadoc、Maven 元数据），你可以让它说明为什么这么判，再决定要不要照做。这是我做这份东西的原则：**宁可标注核实日期和来源，也不给一个听起来合理但没法验证的答案。**
+**应用变更前要求说明依据。** 文档中每条结论均可追溯至来源（服务端源码、官方 Javadoc、Maven 元数据）。可要求模型说明判断依据后再执行修改。
 
 ---
 
 仓库地址：`https://gitee.com/IYeaSakura/PaperMC-Dev-Skills`（GitHub 镜像 `IYeaSakura/PaperMC-Dev-Skills`）
 
-有发现结论和当前版本对不上的，欢迎评论区指出，我会更新进去。
+若发现结论与当前版本不符，欢迎在评论区指出。
