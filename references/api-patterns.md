@@ -866,7 +866,9 @@ public final class ServerFlavor {
     }
 
     public static boolean isPurpur() {
-        return INFO.brandName().equalsIgnoreCase("Purpur");
+        // Purpur's Rebrand patch defines BRAND_PURPUR_ID = Key.key("purpurmc", "purpur").
+        // Building the key locally keeps this compiling against paper-api too.
+        return INFO.isBrandCompatible(Key.key("purpurmc", "purpur"));
     }
 
     public static boolean isPaper() {

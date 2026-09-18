@@ -143,6 +143,42 @@ All Purpur-specific API lives under `org.purpurmc.purpur.*`.
 |-------|-----------|
 | `PlayerBookTooLargeEvent` | A player tries to bypass book limitations |
 
+### Detecting Purpur
+
+Purpur's Rebrand patch adds an official brand id to `ServerBuildInfo`:
+
+```java
+// constant added by Purpur:
+Key BRAND_PURPUR_ID = Key.key("purpurmc", "purpur");
+```
+
+If you compile against **`purpur-api`**, use the constant directly:
+
+```java
+if (ServerBuildInfo.buildInfo().isBrandCompatible(ServerBuildInfo.BRAND_PURPUR_ID)) { … }
+```
+
+If you compile against **`paper-api`** (recommended for multi-server plugins), that constant does not exist, so construct the key yourself or fall back to the brand name:
+
+```java
+private static boolean isPurpur() {
+    // Same id Purpur's patch defines; safe to build on Paper too.
+    if (ServerBuildInfo.buildInfo().isBrandCompatible(Key.key("purpurmc", "purpur"))) {
+        return true;
+    }
+    // Optional secondary check; the brand id above is the reliable one.
+    return Bukkit.getServer().getName().equalsIgnoreCase("Purpur");
+}
+```
+
+`ServerBuildInfo` also gives you `brandId()`, `brandName()`, `minecraftVersionId()`, `buildNumber()` and `gitCommit()`, which are handy in bug reports:
+
+```java
+getLogger().info("Running on " + ServerBuildInfo.buildInfo().brandName()
+    + " " + ServerBuildInfo.buildInfo().minecraftVersionId()
+    + " build " + ServerBuildInfo.buildInfo().buildNumber());
+```
+
 ### Using Purpur API safely
 
 Make Purpur an optional dependency and guard the calls, so one JAR still runs on Paper:
@@ -152,26 +188,25 @@ Make Purpur an optional dependency and guard the calls, so one JAR still runs on
 softdepend: [Purpur]
 ```
 
-```java
-import io.papermc.paper.ServerBuildInfo;
+Because a `NoClassDefFoundError` from a Purpur-only import will take the whole plugin down on Paper, put Purpur-only code in its own class and load it only after the brand check:
 
-private static boolean isPurpur() {
-    // brandName() is e.g. "Paper" on Paper; Purpur reports its own brand.
-    // getServer().getName() is the legacy accessor and returns the same idea.
-    return ServerBuildInfo.buildInfo().brandName().equalsIgnoreCase("Purpur")
-        || Bukkit.getServer().getName().equalsIgnoreCase("Purpur");
+```java
+// PurpurHooks.java — only ever loaded on Purpur
+final class PurpurHooks {
+    static void register(JavaPlugin plugin) {
+        plugin.getServer().getPluginManager().registerEvents(new PurpurBeeListener(), plugin);
+    }
+}
+
+// onEnable
+if (isPurpur()) {
+    try {
+        PurpurHooks.register(this);
+    } catch (NoClassDefFoundError e) {
+        getLogger().warning("Purpur API missing despite Purpur brand: " + e.getMessage());
+    }
 }
 ```
-
-`ServerBuildInfo` also gives you `brandId()` (`Key`), `minecraftVersionId()`, `buildNumber()` and `gitCommit()`, which are handy in bug reports:
-
-```java
-getLogger().info("Running on " + ServerBuildInfo.buildInfo().brandName()
-    + " " + ServerBuildInfo.buildInfo().minecraftVersionId()
-    + " build " + ServerBuildInfo.buildInfo().buildNumber());
-```
-
-Because a `NoClassDefFoundError` from a Purpur-only import will take the whole plugin down on Paper, put Purpur-only code in its own class and load it only after the brand check (e.g. behind a small interface with a `Class.forName` + isolated classloader-free factory).
 
 ## `purpur.yml` Configuration
 
@@ -222,7 +257,7 @@ Two adjacent projects are useful when an admin wants a feature you'd otherwise b
 - [ ] Plugin still loads/behaves when Purpur features are enabled: rideable mobs, modified blocks, attribute overrides, extra commands
 - [ ] No command-name collisions with Purpur's built-in commands
 - [ ] If you use Purpur API: it is optional (`softdepend: [Purpur]`), brand-guarded, and Paper still loads the plugin
-- [ ] Don't rely on `Bukkit.getServer().getName()` matching exactly `"Purpur"` in one place only — check consistently
+- [ ] Platform detection uses `isBrandCompatible(Key.key("purpurmc", "purpur"))` rather than string-matching a display name
 - [ ] If reporting a Purpur-only bug, include the upstream Paper commit from `/v2/purpur/<version>/latest`
 
 ## Reporting Bugs
