@@ -2,7 +2,7 @@
 
 DeepSeek Harness（下称 dsh）是 DeepSeek 开源的本地 Agent 运行框架，其技能（Skill）机制允许在会话中按需加载外部指令文档。该机制适合承载特定领域内需要精确、可溯源的知识。
 
-本文介绍一个面向 Minecraft 服务端插件开发的技能包 **Minecraft-Paper-Dev-Skills**，内容覆盖 Paper 26.x 及其两个分支 Folia、Purpur。技能包共 4600 行（含双语 README），采用 `SKILL.md` 加 `references/` 的分层结构。仓库地址：`gitee.com/IYeaSakura/PaperMC-Dev-Skills`。
+本文介绍一个面向 Minecraft 服务端插件开发的技能包 **Minecraft-Paper-Dev-Skills**，内容覆盖 Paper 26.x 及其两个分支 Folia、Purpur。技能包的技能文档共 3600 余行，采用 `SKILL.md` 加 `references/` 的分层结构。仓库地址：`gitee.com/IYeaSakura/PaperMC-Dev-Skills`。
 
 ## 一、问题定义
 
@@ -42,7 +42,7 @@ Minecraft Java 版的版本编号体系在 2026 年发生变更，由 `1.21.x` �
 
 ## 三、结构设计
 
-技能包共 4600 行（含双语 README），文件构成如下：
+技能包的技能文档共 3600 余行，文件构成如下：
 
 ```
 Minecraft-Paper-Dev-Skills/
@@ -254,7 +254,7 @@ curl -s https://repo.purpurmc.org/snapshots/org/purpurmc/purpur/purpur-api/maven
 
 **应用变更前要求说明依据。** 文档中每条结论均可追溯至来源。可要求模型说明判断依据后再执行修改。
 
-**改编为其他领域。** 该技能包的结构可直接复用于其他技术领域，核心工作有三项：将描述压缩至 500 字符内并前置关键能力；将低频细节拆分至 `references/`；为每条结论标注核实来源与日期。README 中提供了完整的改编步骤清单。
+**改编为其他领域。** 该技能包的结构可直接复用于其他技术领域，核心工作有三项：将描述压缩至 500 字符内并前置关键能力；将低频细节拆分至 `references/`；为每条结论标注核实来源与日期。README 的"改编为其他领域"一节提供了完整的七步清单。
 
 ---
 

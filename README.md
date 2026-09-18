@@ -258,6 +258,18 @@ Before committing a content change:
 - [ ] `SKILL.md` remains a summary and does not duplicate whole reference sections
 - [ ] The version snapshot date reflects the latest verification
 
+### Adapting This Skill to Another Domain
+
+The structure is domain-agnostic. To adapt it, keep the loading constraints in mind and work through these steps:
+
+1. **Keep the description under 500 characters.** `dsh-tool-skill` renders catalog descriptions with a default `catalogDescriptionMaxLength` of 500; anything beyond that is truncated. Put the capabilities the model must see first.
+2. **Bound the scope explicitly.** Decide what the skill will not cover before writing. Unbounded scope makes the reference directory grow without limit.
+3. **Keep `SKILL.md` an index.** Retain only high-frequency content there: quick-reference tables, selection matrices, skeleton code, and checklists.
+4. **Split the rest into `references/`.** One topic per file, with a filename that identifies the content, since discovery is one level deep and directory nesting is not supported.
+5. **Define a source precedence order** and cite a source for every factual claim. Service source code over official documentation over metadata endpoints over community discussion.
+6. **Date the snapshot and ship recheck commands** so readers can refresh the facts themselves.
+7. **Write down the update procedure** — which files to edit when a version advances.
+
 ---
 
 ## Build & Deployment
