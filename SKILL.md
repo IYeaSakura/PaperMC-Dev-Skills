@@ -7,7 +7,7 @@ description: PaperMC 26.x plugin development for Paper, Folia and Purpur servers
 
 Comprehensive guide for developing plugins for **Paper and its major forks (Folia, Purpur)** on 26.x, using Java 25 and Maven/Gradle.
 
-**Target versions (as of 2026-09-17):** Paper **26.2** = latest **stable** (Minecraft Java 26.2), Paper **26.3** = **alpha only**, Paper **26.1.x** = previous stable line. Always code against the latest stable line (26.2 today) unless the user explicitly targets another.
+**Target versions (as of 2026-09-22):** Paper **26.2** = latest **stable** (Minecraft Java 26.2, latest build `26.2.build.127-stable`), Paper **26.3** = **alpha only**, Paper **26.1.x** = previous stable line. Always code against the latest stable line (26.2 today) unless the user explicitly targets another.
 
 ## Server Flavors: Paper, Folia, Purpur
 
@@ -17,7 +17,8 @@ Pick the target deliberately — the three differ substantially in what a plugin
 |---|---|---|---|
 | What it is | The base server | Paper fork adding **regionised multithreading** | Paper **drop-in replacement** with opt-in gameplay/config patches |
 | Threading | One main thread | **No main thread**; one tick loop per region, ticking in parallel | One main thread (not a Folia fork) |
-| Latest 26.2 build | `26.2.build.124-stable` | `26.2.build.7-beta` (**beta**) | `26.2.build.2633-stable` |
+| Latest 26.2 build | `26.2.build.127-stable` | `26.2.build.7-beta` (**beta**) | `26.2.build.2633-stable` |
+| Latest 26.3 build | `26.3.build.32-alpha` | — (no 26.3 build yet) | `26.3.build.2639-experimental` |
 | Maven API coordinate | `io.papermc.paper:paper-api` | `dev.folia:folia-api` | `org.purpurmc.purpur:purpur-api` |
 | Plugin opt-in flag | — | `folia-supported: true` required, else the plugin is **not loaded** | — |
 | Vanilla plugins work? | Yes | **Almost none** — Folia's own README puts expectations at 0 | Yes, unchanged (features are off by default) |
@@ -38,7 +39,7 @@ Paper replaced the old `1.21.8-R0.1-SNAPSHOT` Maven/artifact style with a scheme
 
 ```
 <minecraft-version>.build.<number>-<channel>
-       26.2      .build.  124   -stable
+       26.2      .build.  127   -stable
 ```
 
 | Channel | Meaning | Use for |
@@ -49,9 +50,9 @@ Paper replaced the old `1.21.8-R0.1-SNAPSHOT` Maven/artifact style with a scheme
 
 (`recommended` exists in the downloads service but is unused by Paper; it is used by Velocity.)
 
-- **Latest stable API:** `io.papermc.paper:paper-api:26.2.build.124-stable`
-- **Latest published artifact:** `26.3-pre-2.build.0-alpha` (newer, but alpha — do not ship on it)
-- Maven repository metadata lives at `https://repo.papermc.io/repository/maven-public/io/papermc/paper/paper-api/maven-metadata.xml`; the build/channel list lives at `https://fill.papermc.io/v3/projects/paper`. The old `https://api.papermc.io/v2` downloads API is **sunset** and returns HTTP 410 — do not rely on it. Also note that in the Maven metadata `<latest>`/`<release>` both point at an **alpha** build, so parse the version list for the newest `-stable` rather than trusting those tags.
+- **Latest stable API:** `io.papermc.paper:paper-api:26.2.build.127-stable`
+- **Latest 26.3 artifact:** `26.3.build.32-alpha` — 26.3 is alpha only and no stable 26.3 build exists
+- Maven repository metadata lives at `https://repo.papermc.io/repository/maven-public/io/papermc/paper/paper-api/maven-metadata.xml`; the build/channel list lives at `https://fill.papermc.io/v3/projects/paper`. The old `https://api.papermc.io/v2` downloads API is **sunset** and returns HTTP 410 — do not rely on it. Also note that in the Maven metadata `<latest>`/`<release>` both point at `26.3-pre-2.build.0-alpha`: an **alpha** build that is not even the newest alpha. Parse the version list for the newest `-stable` rather than trusting those tags. `folia-api` has the same defect — its `<release>` is `26.2.build.7-beta`, and Folia has produced no 26.2 stable build at all.
 
 ### Other version facts
 
@@ -76,7 +77,7 @@ Rules enforced by Paper (`org.bukkit.craftbukkit.util.ApiVersion`):
 - A plugin whose `api-version` is **newer** than the server's API version is refused: `InvalidPluginException: Unsupported API version …`.
 - A plugin below the server's configured floor (`settings.minimum-api` in `bukkit.yml`, default `none`) is refused too.
 - Omitting it makes Paper log `Legacy plugin … does not specify an api-version.` and, on old versions, triggers Legacy Material Support.
-- **Never write the Paper build number** (`26.2.build.124-stable`) or a `1.26.x` value — both are invalid.
+- **Never write the Paper build number** (`26.2.build.127-stable`) or a `1.26.x` value — both are invalid.
 
 Pick the **lowest** `api-version` that supports every API you call. Declaring `26.2` when you only use pre-26.2 API prevents your plugin from loading on 26.1 servers; declaring `26.1` keeps 26.1 + 26.2 compatibility.
 
@@ -92,7 +93,7 @@ Reference: [references/project-setup.md](references/project-setup.md) for comple
     <maven.compiler.release>25</maven.compiler.release>
     <!-- Pin an exact -stable build; Paper labels Maven ranges "Discouraged".
          Gradle may instead use "26.2.build.+" — keep the literal `build` token. -->
-    <paper.api.version>26.2.build.124-stable</paper.api.version>
+    <paper.api.version>26.2.build.127-stable</paper.api.version>
 </properties>
 
 <repositories>
@@ -328,8 +329,8 @@ Reference: [references/version-matrix.md](references/version-matrix.md) for full
 | 1.21 – 1.21.11 | 1.21 – 1.21.11 | 21 | `1.21` | Hardfork from Spigot |
 | 26.1.1 | 26.1.1 | **25** | `26.1` | Unsupported (support ended 2026-04-11, last build 29 alpha) |
 | 26.1.2 | 26.1.2 | **25** | `26.1` / `26.1.2` | Supported; world storage format change |
-| **26.2** | **26.2** | **25** | **`26.2`** | **Latest stable** (stable since build 83, 2026-07-26; latest build 124) — Adventure 5, beds are no longer block entities |
-| 26.3 | 26.3 | 25 | `26.3` | **Paper alpha only** — Minecraft 26.3 released 2026-09-15, Paper still pre-release |
+| **26.2** | **26.2** | **25** | **`26.2`** | **Latest stable** (stable since build 83, 2026-07-26; latest build 127, 2026-09-21) — Adventure 5, beds are no longer block entities |
+| 26.3 | 26.3 | 25 | `26.3` | **Paper alpha only** — Minecraft 26.3 "Wilderness Bound" released 2026-09-15; Paper at `26.3.build.32-alpha`, Purpur at `26.3.build.2639-experimental`, Folia has no 26.3 build |
 
 There is no Paper version literally named "26.1" — the 26.1 line is `26.1.1` and `26.1.2`, while `26.1` is a perfectly valid `api-version` meaning "needs at least the 26.1 API".
 
@@ -344,6 +345,12 @@ There is no Paper version literally named "26.1" — the 26.1 line is `26.1.1` a
 - **Timings** is terminally deprecated — use spark.
 - Enum-like keyed types (Biome, Art, PatternType, …) keep `valueOf`/`values` only for compatibility; use `Registry.get(NamespacedKey)` / `Registry.stream()`.
 - Cube mobs share `AbstractCubeMob` (26.2); `MagmaCube` no longer extends `Slime` and `SlimeSplitEvent#getEntity` returns `AbstractCubeMob`.
+
+**What 26.3 adds, and why to stay on 26.2 for now:**
+- Minecraft 26.3 "Wilderness Bound" (2026-09-15) adds the dappled forest biome, poplars, red shrubs, shelf mushrooms, wool and concrete stairs/slabs, straw beds, cushions and abandoned camps. Protocol 777, data version 5023, still Java 25.
+- Cushions are a new **entity type**, not a block: `org.bukkit.entity.Cushion` extends `Colorable` and `Entity`, so it is dyed and carries a `PersistentDataContainer` like any other entity, and placing one fires `EntityPlaceEvent`.
+- New blocks and items mean new `Material` constants. A JAR compiled against `paper-api:26.3.*` that names a 26.3-only `Material` fails at runtime on a 26.2 server, so keep `api-version` at the oldest line you actually support and keep 26.3-only references behind a version guard.
+- Paper has published no 26.3 news post, migration notes or stable build yet. Track https://jd.papermc.io/paper/26.3/ and https://papermc.io/news/ before adopting it.
 
 **Paper vs Spigot after hardfork:**
 - Existing Spigot API methods continue to work

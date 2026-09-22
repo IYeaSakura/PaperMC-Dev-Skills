@@ -1,8 +1,8 @@
-# 为 DeepSeek Harness 编写领域技能包：Paper 26.x 插件开发实践
+> 仓库地址：`https://gitee.com/IYeaSakura/PaperMC-Dev-Skills`，MIT 协议，持续更新中。
 
 DeepSeek Harness（下称 dsh）是 DeepSeek 开源的本地 Agent 运行框架，其技能（Skill）机制允许在会话中按需加载外部指令文档。该机制适合承载特定领域内需要精确、可溯源的知识。
 
-本文介绍一个面向 Minecraft 服务端插件开发的技能包 **Minecraft-Paper-Dev-Skills**，内容覆盖 Paper 26.x 及其两个分支 Folia、Purpur。技能包的技能文档共 3600 余行，采用 `SKILL.md` 加 `references/` 的分层结构。仓库地址：`gitee.com/IYeaSakura/PaperMC-Dev-Skills`。
+本文介绍我近期制作的一个面向 Minecraft 服务端插件开发的技能包 **Minecraft-Paper-Dev-Skills**，内容覆盖 Paper 26.x 及其两个分支 Folia、Purpur。技能包的技能文档共 3600 余行，采用 `SKILL.md` 加 `references/` 的分层结构。
 
 ## 一、问题定义
 
@@ -17,7 +17,7 @@ Minecraft Java 版的版本编号体系在 2026 年发生变更，由 `1.21.x` �
 | Paper 26.2 的 `api-version` 取值 | `26.1.2` 或 `1.21` | `'26.2'`，依据 `ApiVersion` 解析逻辑说明 `26.1.2` 的语义低于 `26.2` |
 | 插件能否运行于 Folia | 需进行兼容性适配 | 需检查 `folia-supported` 字段，未声明时 Folia 不加载该插件 |
 | 26.2 升级需修改的接口 | 提示注意 API 变更 | 列出 9 项弃用项与 3 项破坏性变更，并给出迁移代码 |
-| 当前最新稳定构建号 | 无可靠来源，可能编造 | `124-stable`，并附版本核验命令 |
+| 当前最新稳定构建号 | 无可靠来源，可能编造 | `127-stable`，并附版本核验命令 |
 
 技能包的作用是将上述精确信息固化为可检索的文档，使模型的输出从推测转为引用。
 
@@ -211,15 +211,18 @@ npx @deepseek-ai/dsh web
 | 项目 | Paper | Folia | Purpur |
 |---|---|---|---|
 | 线程模型 | 单主线程 | 无主线程，按区域并行 | 单主线程 |
-| 最新 26.2 构建 | 124-stable | 7-beta | 2633-stable |
+| 最新 26.2 构建 | 127-stable | 7-beta | 2633-stable |
+| 最新 26.3 构建 | 32-alpha | 无 | 2639-experimental |
 | 预发布通道命名 | alpha | beta | experimental |
 | 插件声明要求 | 无 | `folia-supported: true` | 无 |
 | 未修改 Paper 插件可用性 | 可用 | 基本不可用 | 可用，行为一致 |
 
+需要区分「Minecraft 已发布」与「Paper 已稳定」两件事。Minecraft 26.3（Wilderness Bound）已于 2026-09-15 发布，最低 Java 版本仍为 25；但 Paper 26.3 停留在 alpha、Purpur 26.3 属于 experimental、Folia 尚无 26.3 构建，因此文档以 26.2 为生产目标，并单独说明 26.3 中插件可观察到的变化，例如新的 `org.bukkit.entity.Cushion` 实体类型与新增 `Material` 常量。
+
 三个平台的依赖坐标不同：
 
 ```kotlin
-compileOnly("io.papermc.paper:paper-api:26.2.build.124-stable")        // Paper
+compileOnly("io.papermc.paper:paper-api:26.2.build.127-stable")        // Paper
 compileOnly("dev.folia:folia-api:26.2.build.7-beta")                  // Folia，groupId 为 dev.folia
 compileOnly("org.purpurmc.purpur:purpur-api:26.2.build.2633-stable")  // Purpur，仓库为 repo.purpurmc.org
 ```
@@ -230,7 +233,7 @@ Purpur 的注意事项为反向兼容问题。依据其官方 FAQ，`purpur.yml`
 
 ## 七、版本时效性维护
 
-文档中所有版本号核实于 2026-09-17。考虑到 Paper 的版本迭代周期，文档提供了版本核验命令：
+文档中所有版本号核实于 2026-09-22。考虑到 Paper 的版本迭代周期，文档提供了版本核验命令：
 
 ```bash
 # Paper：查询最新 stable 构建
@@ -246,7 +249,9 @@ curl -s https://repo.purpurmc.org/snapshots/org/purpurmc/purpur/purpur-api/maven
   | grep -o '<version>[^<]*</version>' | tail -n 3
 ```
 
-需注意 Paper 的 Maven 元数据中 `<latest>` 与 `<release>` 两个标签当前均指向 `26.3-pre-2.build.0-alpha`，该版本为 alpha 通道，并非最新稳定版。若依赖工具直接读取这两个标签进行升级，将引入预发布版本，应改为解析版本列表并筛选 `-stable` 后缀。
+需注意 Paper 的 Maven 元数据中 `<latest>` 与 `<release>` 两个标签当前均指向 `26.3-pre-2.build.0-alpha`。该值不仅属于 alpha 通道，而且并非最新的 alpha 构建（最新为 `26.3.build.32-alpha`）；元数据中的版本列表也并非按发布时间排列，`26.3-pre-2.build.0-alpha` 排在列表末尾。若依赖工具直接读取这两个标签或取列表末项进行升级，都会引入预发布版本，应改为解析版本列表并按构建号筛选 `-stable` 后缀。
+
+同样的缺陷出现在另两个分支上：`folia-api` 的 `<latest>` 与 `<release>` 均为 `26.2.build.7-beta`，原因是 Folia 从未发布 26.2 的 stable 构建；Purpur 的 `metadata.latest` 为 `26.3.build.2639-experimental`，其最新构建属于 experimental 通道，而当前稳定目标仍为 `26.2.build.2633-stable`。
 
 ## 八、使用建议与改编
 
@@ -255,11 +260,3 @@ curl -s https://repo.purpurmc.org/snapshots/org/purpurmc/purpur/purpur-api/maven
 **应用变更前要求说明依据。** 文档中每条结论均可追溯至来源。可要求模型说明判断依据后再执行修改。
 
 **改编为其他领域。** 该技能包的结构可直接复用于其他技术领域，核心工作有三项：将描述压缩至 500 字符内并前置关键能力；将低频细节拆分至 `references/`；为每条结论标注核实来源与日期。README 的"改编为其他领域"一节提供了完整的七步清单。
-
----
-
-仓库地址：`https://gitee.com/IYeaSakura/PaperMC-Dev-Skills`（GitHub 镜像 `IYeaSakura/PaperMC-Dev-Skills`），MIT 协议。
-
-若发现结论与当前版本不符，欢迎在评论区指出。
-
-[![](https://img.shields.io/badge/powered_by-dsh-4D6BFE?style=flat-square&logo=deepseek&logoColor=white)](https://github.com/deepseek-ai/deepseek-harness)

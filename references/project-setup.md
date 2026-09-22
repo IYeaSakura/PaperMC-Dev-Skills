@@ -39,7 +39,7 @@ This page sets up a **Paper** project, which is the right default: a JAR compile
         <maven.compiler.release>25</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <!-- Pin an exact -stable build. Paper labels Maven ranges "Discouraged". -->
-        <paper.api.version>26.2.build.124-stable</paper.api.version>
+        <paper.api.version>26.2.build.127-stable</paper.api.version>
     </properties>
 
     <repositories>
@@ -190,7 +190,7 @@ repositories {
 dependencies {
     // Exact build (reproducible). The documented loose form is "26.2.build.+";
     // keep the literal `build` token — "26.2.+" could resolve to another patch line.
-    compileOnly("io.papermc.paper:paper-api:26.2.build.124-stable")
+    compileOnly("io.papermc.paper:paper-api:26.2.build.127-stable")
     implementation("com.github.ben-manes.caffeine:caffeine:3.1.8")
 }
 
@@ -240,7 +240,7 @@ plugins {
 }
 
 dependencies {
-    paperweight.paperDevBundle("26.2.build.124-stable")
+    paperweight.paperDevBundle("26.2.build.127-stable")
     // NOTE: remove the paper-api dependency — the dev bundle already contains it.
 }
 ```
@@ -253,7 +253,7 @@ See [version-matrix.md](version-matrix.md) for the mappings, `reobfJar` and dev-
 
 | Approach | Example | Verdict |
 |----------|---------|---------|
-| Exact stable build | `26.2.build.124-stable` | **Preferred** — reproducible |
+| Exact stable build | `26.2.build.127-stable` | **Preferred** — reproducible |
 | Gradle loose build | `26.2.build.+` | Documented, acceptable for plugins that must track fixes |
 | Maven range | `[26.2.build,)` | Paper labels this **"Maven (Discouraged)"** |
 | Guessed version | `26.2` or `1.26.2` | **Wrong** — these are not Maven artifact versions |
@@ -315,16 +315,16 @@ mvn clean package
 
 ```bash
 # 1. Download Paper 26.2 from https://papermc.io/downloads/paper
-#    The jar is named like paper-26.2-124.jar
+#    The jar is named like paper-26.2-127.jar
 # 2. Create a start script
 
 # run.sh (Linux/macOS)
 #!/bin/bash
-java -Xms4G -Xmx4G -jar paper-26.2-124.jar nogui
+java -Xms4G -Xmx4G -jar paper-26.2-127.jar nogui
 
 # run.bat (Windows)
 @echo off
-java -Xms4G -Xmx4G -jar paper-26.2-124.jar nogui
+java -Xms4G -Xmx4G -jar paper-26.2-127.jar nogui
 pause
 
 # 3. First run generates eula.txt — set eula=true
@@ -376,7 +376,7 @@ dependencies {
 folia-supported: true
 ```
 
-Folia 26.2 is currently **beta**, not stable — its last fully stable line is 26.1.2. Prefer compiling against `paper-api` and using the shared schedulers unless you need a Folia-only type. Details: [folia.md](folia.md).
+Folia 26.2 is currently **beta**, not stable — its last fully stable line is 26.1.2, and no 26.3 build exists yet. Prefer compiling against `paper-api` and using the shared schedulers unless you need a Folia-only type. Details: [folia.md](folia.md).
 
 ### Purpur
 

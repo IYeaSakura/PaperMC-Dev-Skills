@@ -7,18 +7,21 @@
 - Downloads: https://papermc.io/downloads/folia · `https://fill.papermc.io/v3/projects/folia`
 - Maven group: `dev.folia` (note: **not** `io.papermc.paper`)
 
-## Status & Versions (2026-09-17)
+## Status & Versions (2026-09-22)
 
 | Folia line | Channel | Notes |
 |-----------|---------|-------|
 | 26.1.2 | build 8 **stable** | Last stable line |
-| **26.2** | builds 1–7 **beta** | Latest, but still **BETA** — `26.2.build.7-beta` |
+| **26.2** | builds 1–7 **beta** | Latest, but still **BETA** — `26.2.build.7-beta` (2026-08-25) |
+| 26.3 | — | No build yet, weeks after Minecraft 26.3 released |
 
 Folia lags Paper and is usually released later and with fewer builds. Verify the channel before recommending it for production:
 
 ```bash
 curl https://fill.papermc.io/v3/projects/folia/versions/26.2/builds
 ```
+
+The `folia-api` Maven metadata reflects the same lag: its `<latest>`/`<release>` are `26.2.build.7-beta`, because no 26.2 stable build exists. Do not treat that `<release>` tag as a stable marker — check the channel on the Folia build endpoint.
 
 ## How Regionised Multithreading Works
 

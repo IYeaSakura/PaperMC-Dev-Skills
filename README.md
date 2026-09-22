@@ -30,9 +30,11 @@ The content is authored from primary sources: PaperMC official documentation and
 ### Paper 26.x Coverage
 
 - Documents the post-26.1 artifact versioning scheme `<minecraft-version>.build.<number>-<channel>` and the official meaning of the `alpha`, `beta` and `stable` channels
-- Pins the current stable target (`paper-api:26.2.build.124-stable`) and flags the alpha-only 26.3 line
+- Pins the current stable target (`paper-api:26.2.build.127-stable`) and flags the alpha-only 26.3 line
 - Explains `api-version` parsing and validation rules with the exact upstream source references and the accepted error messages
 - Tracks the 26.1 and 26.2 breaking changes: world storage layout, world keys, per-world clocks, beds losing their block entity, Adventure 5, and cube mob restructuring
+- Separates "latest Minecraft release" from "latest stable Paper": Minecraft 26.3 shipped 2026-09-15, but Paper 26.3 is alpha, Purpur 26.3 is experimental and Folia has no 26.3 build, so 26.2 stays the production target
+- Notes the 26.3 additions a plugin can actually observe (`org.bukkit.entity.Cushion`, new `Material` constants) and the runtime failure mode of compiling against them too early
 - Replaces the deprecated Timings profiler guidance with spark
 
 ### Folia Regionised Multithreading
@@ -74,7 +76,7 @@ The content is authored from primary sources: PaperMC official documentation and
 
 | Category | Technology | Version |
 |----------|------------|---------|
-| Base Server | Paper | 26.2 (build 124, stable) |
+| Base Server | Paper | 26.2 (build 127, stable) |
 | Fork (Threading) | Folia | 26.2 (build 7, beta) |
 | Fork (Features) | Purpur | 26.2 (build 2633, stable) |
 | Game Version | Minecraft Java Edition | 26.2 |
@@ -191,7 +193,7 @@ The skill is documentation and requires no configuration files or environment va
 
 ### Version Snapshot
 
-The skill embeds a verified snapshot dated **2026-09-17**. Re-check the live endpoints before relying on it for a new project:
+The skill embeds a verified snapshot dated **2026-09-22**. Re-check the live endpoints before relying on it for a new project:
 
 ```bash
 # Paper versions and channel status
@@ -223,7 +225,7 @@ All content is Markdown. Follow these conventions to keep the package coherent:
 |------|------------|---------|
 | Headings | Sentence case, imperative where instructional | `## Marking a Plugin as Folia-Supported` |
 | Code fences | Always tagged with a language | `java`, `kotlin`, `yaml`, `bash` |
-| Version strings | Backticked, exact artifact form | `26.2.build.124-stable` |
+| Version strings | Backticked, exact artifact form | `26.2.build.127-stable` |
 | Class references | Fully qualified on first use | `io.papermc.paper.threadedregions.scheduler.RegionScheduler` |
 | Platform names | Capitalized as branded | Paper, Folia, Purpur |
 | Deprecation claims | State the replacement explicitly | `Use teleportAsync` |
@@ -349,7 +351,7 @@ git push origin v26.2.0
 
 ## Version Matrix
 
-As of the **2026-09-17** snapshot:
+As of the **2026-09-22** snapshot:
 
 | PaperMC | Minecraft | Min Java | api-version | Status |
 |---------|-----------|----------|-------------|--------|
@@ -366,7 +368,8 @@ As of the **2026-09-17** snapshot:
 |---|---|---|---|
 | Relationship | Base server | Paper fork with regionised multithreading | Paper drop-in replacement |
 | Threading | One main thread | No main thread; one tick loop per region | One main thread |
-| Latest 26.2 build | `124-stable` | `7-beta` | `2633-stable` |
+| Latest 26.2 build | `127-stable` | `7-beta` | `2633-stable` |
+| Latest 26.3 build | `32-alpha` | — | `2639-experimental` |
 | Maven group | `io.papermc.paper` | `dev.folia` | `org.purpurmc.purpur` |
 | Pre-release channel name | `alpha` | `beta` | `experimental` |
 | Plugin opt-in required | No | `folia-supported: true` | No |
@@ -417,7 +420,7 @@ As of the **2026-09-17** snapshot:
 **Problem**: The server logs `Unsupported API version` or refuses to load the plugin.
 
 **Solution**:
-- Use `major.minor` such as `26.2`, not a build id such as `26.2.build.124-stable`
+- Use `major.minor` such as `26.2`, not a build id such as `26.2.build.127-stable`
 - Never use a `1.26.x` form; the 2026 scheme is `year.drop`
 - Check `settings.minimum-api` in `bukkit.yml` if the plugin is rejected for being too old
 

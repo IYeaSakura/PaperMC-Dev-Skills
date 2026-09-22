@@ -1,6 +1,6 @@
 # API Patterns Reference
 
-Targets Paper 26.x (verified against `paper-api 26.2.build.124-stable`). Patterns here use **only APIs shared by Paper, Purpur and Folia** unless a section says otherwise — see [folia.md](folia.md) and [purpur.md](purpur.md) for fork-specific API.
+Targets Paper 26.x (verified against `paper-api 26.2.build.127-stable`). Patterns here use **only APIs shared by Paper, Purpur and Folia** unless a section says otherwise — see [folia.md](folia.md) and [purpur.md](purpur.md) for fork-specific API.
 
 ## Table of Contents
 1. [Event System](#event-system)
