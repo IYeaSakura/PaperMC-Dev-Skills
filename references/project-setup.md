@@ -39,7 +39,7 @@ This page sets up a **Paper** project, which is the right default: a JAR compile
         <maven.compiler.release>25</maven.compiler.release>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <!-- Pin an exact -stable build. Paper labels Maven ranges "Discouraged". -->
-        <paper.api.version>26.2.build.127-stable</paper.api.version>
+        <paper.api.version>26.2.build.129-stable</paper.api.version>
     </properties>
 
     <repositories>
@@ -190,7 +190,7 @@ repositories {
 dependencies {
     // Exact build (reproducible). The documented loose form is "26.2.build.+";
     // keep the literal `build` token — "26.2.+" could resolve to another patch line.
-    compileOnly("io.papermc.paper:paper-api:26.2.build.127-stable")
+    compileOnly("io.papermc.paper:paper-api:26.2.build.129-stable")
     implementation("com.github.ben-manes.caffeine:caffeine:3.1.8")
 }
 
@@ -232,15 +232,15 @@ tasks {
 
 ### NMS / internal access
 
-Use **paperweight-userdev** instead of a plain `paper-api` dependency. Current version: **2.0.0-beta.23**.
+Use **paperweight-userdev** instead of a plain `paper-api` dependency. Current version: **2.0.0-beta.24** (2026-09-25).
 
 ```kotlin
 plugins {
-    id("io.papermc.paperweight.userdev") version "2.0.0-beta.23"
+    id("io.papermc.paperweight.userdev") version "2.0.0-beta.24"
 }
 
 dependencies {
-    paperweight.paperDevBundle("26.2.build.127-stable")
+    paperweight.paperDevBundle("26.2.build.129-stable")
     // NOTE: remove the paper-api dependency — the dev bundle already contains it.
 }
 ```
@@ -253,7 +253,7 @@ See [version-matrix.md](version-matrix.md) for the mappings, `reobfJar` and dev-
 
 | Approach | Example | Verdict |
 |----------|---------|---------|
-| Exact stable build | `26.2.build.127-stable` | **Preferred** — reproducible |
+| Exact stable build | `26.2.build.129-stable` | **Preferred** — reproducible |
 | Gradle loose build | `26.2.build.+` | Documented, acceptable for plugins that must track fixes |
 | Maven range | `[26.2.build,)` | Paper labels this **"Maven (Discouraged)"** |
 | Guessed version | `26.2` or `1.26.2` | **Wrong** — these are not Maven artifact versions |
@@ -315,16 +315,16 @@ mvn clean package
 
 ```bash
 # 1. Download Paper 26.2 from https://papermc.io/downloads/paper
-#    The jar is named like paper-26.2-127.jar
+#    The jar is named like paper-26.2-129.jar
 # 2. Create a start script
 
 # run.sh (Linux/macOS)
 #!/bin/bash
-java -Xms4G -Xmx4G -jar paper-26.2-127.jar nogui
+java -Xms4G -Xmx4G -jar paper-26.2-129.jar nogui
 
 # run.bat (Windows)
 @echo off
-java -Xms4G -Xmx4G -jar paper-26.2-127.jar nogui
+java -Xms4G -Xmx4G -jar paper-26.2-129.jar nogui
 pause
 
 # 3. First run generates eula.txt — set eula=true

@@ -30,11 +30,12 @@
 ### Paper 26.x 覆盖
 
 - 说明 26.1 之后的新构件版本方案 `<minecraft-version>.build.<number>-<channel>`，以及 `alpha`、`beta`、`stable` 三个通道的官方含义
-- 固定当前稳定目标（`paper-api:26.2.build.127-stable`），并标注 26.3 仍处于 alpha
+- 固定当前稳定目标（`paper-api:26.2.build.129-stable`），并标注 26.3 仍处于 alpha
 - 结合上游源码引用解释 `api-version` 的解析与校验规则，并给出可能出现的错误信息
 - 跟踪 26.1 与 26.2 的破坏性变更：世界存储布局、世界键、按世界计时的时钟、床不再是方块实体、Adventure 5、方块怪重构
 - 区分「Minecraft 已发布」与「Paper 已稳定」：Minecraft 26.3 已于 2026-09-15 发布，但 Paper 26.3 处于 alpha、Purpur 26.3 处于 experimental、Folia 尚无 26.3 构建，生产环境仍应使用 26.2
 - 说明 26.3 中插件真正可观察到的变化（`org.bukkit.entity.Cushion`、新增 `Material` 常量），以及过早针对其编译会在运行时出现的失败
+- 覆盖 26.3 中 Bukkit 命令体系被标记为 obsolete 一事（`CommandExecutor`、`TabCompleter`、`plugin.yml` 的 `commands:`），并给出官方推荐的两种替代路径：`io.papermc.paper.command.brigadier.BasicCommand` 配合 `registerCommand(...)`，或经 `LifecycleEvents.COMMANDS` 使用 Brigadier
 - 将已弃用的 Timings 性能分析指引替换为 spark
 
 ### Folia 区域化多线程
@@ -76,7 +77,7 @@
 
 | 类别 | 技术 | 版本 |
 |------|------|------|
-| 基础服务端 | Paper | 26.2（build 127，stable） |
+| 基础服务端 | Paper | 26.2（build 129，stable） |
 | 分支（线程模型） | Folia | 26.2（build 7，beta） |
 | 分支（功能扩展） | Purpur | 26.2（build 2633，stable） |
 | 游戏版本 | Minecraft Java Edition | 26.2 |
@@ -90,7 +91,7 @@
 | 构建工具 | Gradle | 8.x（Kotlin DSL） |
 | 核心 API | Bukkit / Paper API | 26.x |
 | 文本库 | Adventure | 5.x |
-| NMS 工具 | paperweight-userdev | 2.0.0-beta.23 |
+| NMS 工具 | paperweight-userdev | 2.0.0-beta.24 |
 
 ### 可选依赖
 
@@ -193,7 +194,7 @@ ls -1 ~/.dsh/skills/Minecraft-Paper-Dev-Skills
 
 ### 版本快照
 
-技能内置的快照核实日期为 **2026-09-22**。用于新项目前，请先核对在线接口：
+技能内置的快照核实日期为 **2026-09-28**。用于新项目前，请先核对在线接口：
 
 ```bash
 # Paper versions and channel status
@@ -225,7 +226,7 @@ curl -s https://api.purpurmc.org/v2/purpur/
 |------|------|------|
 | 标题 | 句首大写，指导性内容用祈使式 | `## Marking a Plugin as Folia-Supported` |
 | 代码块 | 必须标注语言 | `java`、`kotlin`、`yaml`、`bash` |
-| 版本字符串 | 使用反引号，采用精确构件写法 | `26.2.build.127-stable` |
+| 版本字符串 | 使用反引号，采用精确构件写法 | `26.2.build.129-stable` |
 | 类引用 | 首次出现时使用全限定名 | `io.papermc.paper.threadedregions.scheduler.RegionScheduler` |
 | 平台名称 | 按品牌大小写书写 | Paper、Folia、Purpur |
 | 弃用论断 | 明确给出替代方案 | `Use teleportAsync` |
@@ -339,7 +340,7 @@ git push origin v26.2.0
 
 ## 版本矩阵
 
-截至 **2026-09-22** 快照：
+截至 **2026-09-28** 快照：
 
 | PaperMC | Minecraft | 最低 Java | api-version | 状态 |
 |---------|-----------|-----------|-------------|------|
@@ -356,8 +357,8 @@ git push origin v26.2.0
 |---|---|---|---|
 | 关系 | 基础服务端 | 加入区域化多线程的 Paper 分支 | Paper 的直接替换版 |
 | 线程模型 | 单一主线程 | 无主线程；每个区域一个 tick 循环 | 单一主线程 |
-| 26.2 最新构建 | `127-stable` | `7-beta` | `2633-stable` |
-| 26.3 最新构建 | `32-alpha` | — | `2639-experimental` |
+| 26.2 最新构建 | `129-stable` | `7-beta` | `2633-stable` |
+| 26.3 最新构建 | `133-alpha` | — | `2642-experimental` |
 | Maven group | `io.papermc.paper` | `dev.folia` | `org.purpurmc.purpur` |
 | 预发布通道名 | `alpha` | `beta` | `experimental` |
 | 是否需要插件声明 | 否 | 需要 `folia-supported: true` | 否 |
@@ -408,7 +409,7 @@ git push origin v26.2.0
 **问题**：服务端日志出现 `Unsupported API version`，或拒绝加载插件。
 
 **解决方法**：
-- 使用 `major.minor` 形式如 `26.2`，而非构建号如 `26.2.build.127-stable`
+- 使用 `major.minor` 形式如 `26.2`，而非构建号如 `26.2.build.129-stable`
 - 不要使用 `1.26.x` 形式；2026 年的方案是 `year.drop`
 - 若插件因过旧被拒绝，检查 `bukkit.yml` 中的 `settings.minimum-api`
 

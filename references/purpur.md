@@ -18,7 +18,7 @@ And, from Purpur's FAQ:
 
 So for most plugins Purpur needs **no code changes at all** — it is one more Paper-compatible target to test against. The risk area is the opposite direction: plugins that *assume* vanilla/Paper game mechanics can break on a server where an admin has enabled a Purpur toggle (rideable mobs, modified block behaviour, changed attributes, …).
 
-## Status & Versions (2026-09-22)
+## Status & Versions (2026-09-28)
 
 Purpur adopted Paper's post-26.1 versioning — `<mcversion>.build.<n>-<channel>` — with its own build counter. Note the pre-release channel is called **`experimental`**, not `alpha`:
 
@@ -26,7 +26,7 @@ Purpur adopted Paper's post-26.1 versioning — `<mcversion>.build.<n>-<channel>
 |------------|--------------|---------|-------|
 | 26.1.2 | 2592 | **stable** | Previous line |
 | **26.2** | **2633** | **stable** | Current recommended target |
-| 26.3 | 2639 | experimental | Builds 2634–2639 exist, but the API marks them `experimental`; not for production |
+| 26.3 | 2642 | experimental | Builds 2634–2642 (2026-09-27) all report `"type": "experimental"`; not for production. No new 26.2 stable build has shipped since 2633 |
 
 Branch layout: `ver/26.2` and `ver/26.3` (older branches are protected tags like `ver/1.21.11`).
 

@@ -22,7 +22,7 @@
 | 1.21 – 1.21.11 | 1.21 – 1.21.11 | 21 | `1.21` | Old | Hardfork from Spigot begins at 1.21.4 |
 | 26.1.1 | 26.1.1 | **25** | `26.1` | Unsupported (support ended 2026-04-11, last build 29 alpha) | Year-based versioning, new build/channel scheme |
 | 26.1.2 | 26.1.2 | **25** | `26.1` or `26.1.2` | Supported (last build 74 stable, 2026-07-06) | World storage format change |
-| **26.2** | **26.2** | **25** | **`26.2`** | **Latest stable** (first stable build #83, 2026-07-26; latest build #127, 2026-09-21) | Adventure 5, beds stop being block entities, `AbstractCubeMob` |
+| **26.2** | **26.2** | **25** | **`26.2`** | **Latest stable** (first stable build #83, 2026-07-26; latest build #129, 2026-09-23) | Adventure 5, beds stop being block entities, `AbstractCubeMob` |
 | 26.3 | 26.3 | 25 | `26.3` | **Paper alpha only** (up to build 32 alpha, 2026-09-21; Minecraft 26.3 released 2026-09-15) | Poplars / dappled forest, `Cushion` entity |
 
 **Version numbering caveats:**
@@ -39,7 +39,7 @@ New:  26.1 / 26.2 / 26.3   (year.drop[.patch])
 
 Paper 26.2 = Minecraft Java 26.2. It is **not** 1.26.x and **not** 1.21.x. Never translate an old `1.x` number into `1.2x`.
 
-Minecraft 26.3 ("Wilderness Bound") shipped 2026-09-15 (dappled forest biome, poplars, red shrubs, shelf mushrooms, wool/concrete stairs and slabs, straw beds, cushions, abandoned camps), still targets **Java 25**, and reports protocol 777 / data version 5023. Paper 26.3 is still `-alpha` (`26.3.build.32-alpha`), Purpur 26.3 is `-experimental` (`26.3.build.2639-experimental`) and Folia has no 26.3 build at all, so production plugins should target 26.2.
+Minecraft 26.3 ("Wilderness Bound") shipped 2026-09-15 (dappled forest biome, poplars, red shrubs, shelf mushrooms, wool/concrete stairs and slabs, straw beds, cushions, abandoned camps), still targets **Java 25**, and reports protocol 777 / data version 5023. Paper 26.3 is still `-alpha` (`26.3.build.133-alpha`), Purpur 26.3 is `-experimental` (`26.3.build.2642-experimental`) and Folia has no 26.3 build at all, so production plugins should target 26.2.
 
 ---
 
@@ -51,8 +51,8 @@ Three servers matter in practice. They share Bukkit/Paper API but differ in thre
 |---|---|---|---|
 | Relationship | Base | Paper fork (regionised multithreading) | Paper drop-in replacement (opt-in features) |
 | Main thread | Yes | **No** — one tick loop per region, in parallel | Yes (not a Folia fork) |
-| 26.2 status | `26.2.build.127-stable` | `26.2.build.7-beta` (**beta**) | `26.2.build.2633-stable` |
-| 26.3 status | `26.3.build.32-alpha` | — (none yet) | `26.3.build.2639-experimental` |
+| 26.2 status | `26.2.build.129-stable` | `26.2.build.7-beta` (**beta**) | `26.2.build.2633-stable` |
+| 26.3 status | `26.3.build.133-alpha` | — (none yet) | `26.3.build.2642-experimental` |
 | Last stable line | 26.2 | 26.1.2 (build 8 stable) | 26.2 |
 | Maven group | `io.papermc.paper` | `dev.folia` | `org.purpurmc.purpur` |
 | Artifact | `paper-api` | `folia-api` | `purpur-api` |
@@ -80,7 +80,7 @@ Three servers matter in practice. They share Bukkit/Paper API but differ in thre
 
 ```kotlin
 // Paper (default)
-compileOnly("io.papermc.paper:paper-api:26.2.build.127-stable")
+compileOnly("io.papermc.paper:paper-api:26.2.build.129-stable")
 
 // Folia
 compileOnly("dev.folia:folia-api:26.2.build.7-beta")
@@ -106,7 +106,7 @@ Since 26.1, Paper artifact versions and build channels look like this:
 
 ```
 <minecraft-version>.build.<build-number>-<channel>
-       26.2        .build.   127       -stable
+       26.2        .build.   129       -stable
 ```
 
 Channel semantics are officially defined by Paper (they replaced the older `experimental` / `default` naming):
@@ -119,27 +119,29 @@ Channel semantics are officially defined by Paper (they replaced the older `expe
 
 `recommended` exists in the downloads service but is **not used by Paper** (it is used by Velocity).
 
-Worked examples from the `paper-api` Maven metadata (probed 2026-09-22):
+Worked examples from the `paper-api` Maven metadata (probed 2026-09-28):
 
 | Version line | Alpha from | Beta from | Stable from | Latest build |
 |--------------|-----------|-----------|-------------|--------------|
 | 26.1.2 | build 2 | build 48 (2026-04-26) | build 53 (2026-05-01) | 74 stable (2026-07-06) |
-| 26.2 | build 10 | build 59 (2026-07-12) | build 83 (2026-07-26) | 127 stable (2026-09-21) |
-| 26.3 | build 3 | — | — | 32 alpha (2026-09-21) |
+| 26.2 | build 10 | build 59 (2026-07-12) | build 83 (2026-07-26) | 129 stable (2026-09-23) |
+| 26.3 | build 3 | — | — | 133 alpha (2026-09-27) |
 
-- `26.2.build.127-stable` ← current latest **stable**
+- `26.2.build.129-stable` ← current latest **stable**
 - `26.1.2.build.74-stable` ← last stable of the 26.1 line
-- `26.3.build.32-alpha` ← newest artifact published overall (alpha only)
+- `26.3.build.133-alpha` ← newest artifact published overall (alpha only)
 
-Note the metadata's version list is **not** in publication order: `26.3-pre-2.build.0-alpha` is listed after `26.3.build.32-alpha` even though it is older. Sort by build number, not by list position.
+Note the metadata's version list is **not** in publication order: `26.3-pre-2.build.0-alpha` is listed after `26.3.build.133-alpha` even though it is older. Sort by build number, not by list position.
 
 Machine-readable sources:
+
+⚠️ The **Javadoc for a pre-release line can lag far behind its builds**: on 2026-09-28 `jd.papermc.io/paper/26.3/` still reported `26.3.build.49-alpha` while 26.3 builds were at 133, whereas `jd.papermc.io/paper/26.2/` was current at `129-stable`. Read build numbers from the downloads API, not from the Javadoc page title, and expect newer pre-release API to be absent from its Javadoc.
 
 - Maven metadata: `https://repo.papermc.io/repository/maven-public/io/papermc/paper/paper-api/maven-metadata.xml`
 - Downloads API **v3**: `https://fill.papermc.io/v3/projects/paper`, `…/versions/26.2/builds` (REST) or `https://fill.papermc.io/graphql`
 - The old `https://api.papermc.io/v2/...` API is **sunset** (HTTP 410, `{"error":"sunset"}`) and must not be used in tooling. The v3 API asks for a descriptive `User-Agent` with contact info.
 
-⚠️ In the Maven metadata, `<latest>` and `<release>` both point at `26.3-pre-2.build.0-alpha`. **`<release>` is not "the latest stable"** here — it is an alpha, and not even the newest alpha. Resolve the newest `-stable` entry by parsing the version list, don't trust those two tags. Folia has the same defect: `folia-api`'s `<latest>`/`<release>` are `26.2.build.7-beta`, because Folia never published a 26.2 stable build. Purpur's `metadata.latest` is `26.3.build.2639-experimental` for the same reason — its newest build belongs to the `experimental` channel, while the current stable target is `26.2.build.2633-stable`.
+⚠️ In the Maven metadata, `<latest>` and `<release>` both point at `26.3-pre-2.build.0-alpha`. **`<release>` is not "the latest stable"** here — it is an alpha, and not even the newest alpha. Resolve the newest `-stable` entry by parsing the version list, don't trust those two tags. Folia has the same defect: `folia-api`'s `<latest>`/`<release>` are `26.2.build.7-beta`, because Folia never published a 26.2 stable build. Purpur's `metadata.latest` is `26.3.build.2642-experimental` for the same reason — its newest build belongs to the `experimental` channel, while the current stable target is `26.2.build.2633-stable`.
 
 **Pinning advice:** Gradle's documented form is `26.2.build.+` (the literal `build` token must stay — `26.2.+` could resolve to a different patch line). Maven's range form `[26.2.build,)` carries Paper's explicit **"Maven (Discouraged)"** label; prefer an exact `-stable` build id in `pom.xml` for reproducible builds.
 
@@ -303,11 +305,11 @@ Reflection still needs raw names, which is exactly why the supported path is com
 
 ### paperweight-userdev (Recommended for NMS)
 
-Current version: **2.0.0-beta.23** (Gradle Plugin Portal, published 2026-08-28). The old `1.7.1` example seen in many tutorials is outdated.
+Current version: **2.0.0-beta.24** (Gradle Plugin Portal, published 2026-09-25; configuration-cache compatible). The old `1.7.1` example seen in many tutorials is outdated. Note that `repo.papermc.io`'s copy of the plugin marker (`io.papermc.paperweight.userdev.gradle.plugin`) does not list the 2.0.0 betas — check the Gradle Plugin Portal.
 
 ```kotlin
 plugins {
-    id("io.papermc.paperweight.userdev") version "2.0.0-beta.23"
+    id("io.papermc.paperweight.userdev") version "2.0.0-beta.24"
 }
 
 dependencies {
@@ -315,7 +317,7 @@ dependencies {
     // Gradle string notation docs show generically as paperweight.paperDevBundle("26.2.build.+")
     // The dev bundle already contains the Paper API, so remove any separate
     // paper-api dependency when you use it.
-    paperweight.paperDevBundle("26.2.build.127-stable")
+    paperweight.paperDevBundle("26.2.build.129-stable")
 }
 ```
 
@@ -377,7 +379,7 @@ Validation performed by `CraftMagicNumbers#checkSupported(PluginDescriptionFile)
 | `api-version` newer than the server's API version | `InvalidPluginException: Unsupported API version <value>` — plugin does not load |
 | `api-version` older than `settings.minimum-api` (`bukkit.yml`, default `none`) | `InvalidPluginException: Plugin API version … is lower than the minimum allowed version` |
 | `api-version` absent (`ApiVersion.NONE`) | loads as a legacy plugin with a warning; may enable Legacy Material Support |
-| malformed value (e.g. `26.2.build.127-stable`, `1.26`, `latest`) | `IllegalArgumentException` while parsing |
+| malformed value (e.g. `26.2.build.129-stable`, `1.26`, `latest`) | `IllegalArgumentException` while parsing |
 
 Named `ApiVersion` constants are behaviour gates, not allowed values: `FLATTENING=1.13`, `FIELD_NAME_PARITY=1.20.5`, `ABSTRACT_COW=1.21.5`, `ABSTRACT_CUBE_MOB=26.2`.
 
@@ -459,7 +461,7 @@ On plain Paper `Bukkit.getScheduler()` still works; it is simply not Folia-compa
 
 1. **Change `api-version`** from `'1.21'` to `'26.1'` or `'26.2'`
 2. **Change the Java target** from 21 to 25 (both compile and runtime)
-3. **Update the Paper API dependency** to a 26.x `-stable` build (e.g. `26.2.build.127-stable`)
+3. **Update the Paper API dependency** to a 26.x `-stable` build (e.g. `26.2.build.129-stable`)
 4. **Update libraries** — see the Adventure 5 section below; text/item APIs moved
 5. **Back up worlds** — world storage format changed in 26.1 and **cannot be downgraded** after upgrade
 6. **Test thoroughly** — the hardfork and the version bump both carry behavior changes
@@ -534,6 +536,7 @@ Confirmed against the Paper 26.2 and 26.3 Javadocs and Paper's release notes.
 | `BlockSoundGroup` (destroystokyo) | Deprecated | Use `org.bukkit.SoundGroup` |
 | `TargetBlockInfo`, `BlockSoundGroup` ray-trace helpers | Deprecated | Use `RayTraceResult`, `FluidCollisionMode` |
 | `BukkitBrigadierCommand` / `PaperBrigadier` | Deprecated for removal | Use `io.papermc.paper.command.brigadier.Commands` and `LifecycleEvents.COMMANDS` |
+| **Bukkit command system** (26.3) | Marked `@ApiStatus.Obsolete(since = "26.3")`: `Command`, `CommandExecutor`, `TabCompleter`, `TabExecutor`, `PluginCommand`, `CommandMap`, `SimpleCommandMap`, `PluginCommandYamlParser`, `PluginIdentifiableCommand`, `FormattedCommandAlias`, `MultipleCommandAlias`, `defaults/BukkitCommand`, `Bukkit#getCommandMap`/`getPluginCommand`, `Server#getCommandMap`/`getPluginCommand`, `JavaPlugin#onCommand`/`onTabComplete`/`getCommand` (PaperMC/Paper#14281, 2026-09-26) | Obsolete is weaker than deprecated: no compiler warning, existing plugins keep working. Migrate new and maintained code to `io.papermc.paper.command.brigadier.BasicCommand` + `JavaPlugin#registerCommand(...)`, or to Brigadier via `LifecycleEvents.COMMANDS`. A follow-up PR proposing full `@Deprecated` was closed in favour of this transition. |
 | `EntityState` teleport flags (`RETAIN_PASSENGERS`, `RETAIN_OPEN_INVENTORY`, `RETAIN_VEHICLE`) | Behavior is now vanilla default / removed | Stop passing them; close inventories manually |
 | `Mob#setDespawnInPeacefulOverride` | Deprecated ("clients no longer render those entities") | Avoid |
 | Concrete custom tags | Deprecated in favour of vanilla tags | Use the vanilla tag constants |

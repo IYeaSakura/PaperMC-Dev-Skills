@@ -1,6 +1,6 @@
 # API Patterns Reference
 
-Targets Paper 26.x (verified against `paper-api 26.2.build.127-stable`). Patterns here use **only APIs shared by Paper, Purpur and Folia** unless a section says otherwise — see [folia.md](folia.md) and [purpur.md](purpur.md) for fork-specific API.
+Targets Paper 26.x (verified against `paper-api 26.2.build.129-stable`; 26.3 checked against `26.3.build.133-alpha`). Patterns here use **only APIs shared by Paper, Purpur and Folia** unless a section says otherwise — see [folia.md](folia.md) and [purpur.md](purpur.md) for fork-specific API.
 
 ## Table of Contents
 1. [Event System](#event-system)
@@ -146,7 +146,54 @@ Notes:
 
 ## Command System
 
-### Basic CommandExecutor
+**Status on 26.x.** Paper marks the classic Bukkit command path as **obsolete since 26.3** (`@ApiStatus.Obsolete(since = "26.3")`, PaperMC/Paper#14281, merged 2026-09-26) — see the deprecated/obsolete table in [version-matrix.md](version-matrix.md). Obsolete carries no compiler warning and nothing stops loading, but new plugins should pick one of the two supported replacements:
+
+| Approach | Type | Use when |
+|----------|------|----------|
+| **BasicCommand** | `io.papermc.paper.command.brigadier.BasicCommand` + `JavaPlugin#registerCommand` | You want the familiar `String[] args` style; Paper converts it to `/label <greedy_string>` Brigadier at registration. Available on 26.2 stable. |
+| **Brigadier** | `LifecycleEvents.COMMANDS` + `Commands.literal(...)` | You want typed arguments, subcommand trees and client-side suggestions. |
+| ~~`CommandExecutor` / `TabCompleter`~~ | `org.bukkit.command.*` | **Obsolete (26.3).** Existing plugins keep working; do not start new ones here. |
+
+### BasicCommand (Recommended replacement for CommandExecutor)
+
+```java
+import io.papermc.paper.command.brigadier.BasicCommand;
+import io.papermc.paper.command.brigadier.CommandSourceStack;
+
+public class MainCommand implements BasicCommand {
+    @Override
+    public void execute(CommandSourceStack source, String[] args) {
+        CommandSender sender = source.getSender();
+        if (args.length == 0) {
+            sender.sendMessage(Component.text("Usage: /cmd <sub>"));
+            return;
+        }
+        // handle subcommands; there is no boolean return — usage text is your own
+    }
+
+    @Override
+    public Collection<String> suggest(CommandSourceStack source, String[] args) {
+        return args.length == 1 ? List.of("reload", "give") : List.of();
+    }
+
+    @Override
+    public String permission() { return "myplugin.use"; }
+}
+```
+
+```java
+// onEnable() — the only valid place; four overloads:
+registerCommand("myplugin", new MainCommand());
+registerCommand("myplugin", "My plugin", new MainCommand());
+registerCommand("myplugin", List.of("mp"), new MainCommand());
+registerCommand("myplugin", "My plugin", List.of("mp"), new MainCommand());
+```
+
+`BasicCommand` methods: `execute(CommandSourceStack, String[])`, `suggest(CommandSourceStack, String[])`, `canUse(CommandSender)` and `permission()` (both defaulted). Note `source.getSender()` replaces the old `CommandSender` parameter, and `args` ignores repeated spaces in `execute` but preserves them in `suggest`.
+
+Commands registered through `registerCommand` do **not** need a `plugin.yml` `commands:` entry. Aliases do not override pre-existing commands; the main (or namespaced) label does.
+
+### Legacy CommandExecutor (existing plugins only)
 
 ```java
 public class MainCommand implements CommandExecutor {
@@ -167,7 +214,7 @@ public class MainCommand implements CommandExecutor {
 }
 ```
 
-### TabCompleter
+### Legacy TabCompleter (existing plugins only)
 
 ```java
 public class MainTabCompleter implements TabCompleter {
@@ -848,6 +895,7 @@ Checklist when bringing a plugin forward to 26.x:
 8. **Profile with spark** instead of Timings.
 9. **Schedule with the Paper schedulers** if you want Folia support.
 10. **Re-test world-touching code** — the 26.1 world storage format change is irreversible.
+11. **Move commands off `CommandExecutor`/`TabCompleter`** if you target 26.3+: the Bukkit command path is obsolete there. `BasicCommand` + `registerCommand(...)` is the smallest change; Brigadier is the full-featured one.
 
 ---
 

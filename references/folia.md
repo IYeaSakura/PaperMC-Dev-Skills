@@ -7,13 +7,13 @@
 - Downloads: https://papermc.io/downloads/folia · `https://fill.papermc.io/v3/projects/folia`
 - Maven group: `dev.folia` (note: **not** `io.papermc.paper`)
 
-## Status & Versions (2026-09-22)
+## Status & Versions (2026-09-28)
 
 | Folia line | Channel | Notes |
 |-----------|---------|-------|
 | 26.1.2 | build 8 **stable** | Last stable line |
 | **26.2** | builds 1–7 **beta** | Latest, but still **BETA** — `26.2.build.7-beta` (2026-08-25) |
-| 26.3 | — | No build yet, weeks after Minecraft 26.3 released |
+| 26.3 | — | No build yet, weeks after Minecraft 26.3 released; 26.2 build 7 (2026-08-25) is still the newest Folia build of any kind |
 
 Folia lags Paper and is usually released later and with fewer builds. Verify the channel before recommending it for production:
 

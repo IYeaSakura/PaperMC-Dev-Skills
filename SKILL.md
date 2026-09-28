@@ -7,7 +7,7 @@ description: PaperMC 26.x plugin development for Paper, Folia and Purpur servers
 
 Comprehensive guide for developing plugins for **Paper and its major forks (Folia, Purpur)** on 26.x, using Java 25 and Maven/Gradle.
 
-**Target versions (as of 2026-09-22):** Paper **26.2** = latest **stable** (Minecraft Java 26.2, latest build `26.2.build.127-stable`), Paper **26.3** = **alpha only**, Paper **26.1.x** = previous stable line. Always code against the latest stable line (26.2 today) unless the user explicitly targets another.
+**Target versions (as of 2026-09-28):** Paper **26.2** = latest **stable** (Minecraft Java 26.2, latest build `26.2.build.129-stable`), Paper **26.3** = **alpha only**, Paper **26.1.x** = previous stable line. Always code against the latest stable line (26.2 today) unless the user explicitly targets another.
 
 ## Server Flavors: Paper, Folia, Purpur
 
@@ -17,8 +17,8 @@ Pick the target deliberately — the three differ substantially in what a plugin
 |---|---|---|---|
 | What it is | The base server | Paper fork adding **regionised multithreading** | Paper **drop-in replacement** with opt-in gameplay/config patches |
 | Threading | One main thread | **No main thread**; one tick loop per region, ticking in parallel | One main thread (not a Folia fork) |
-| Latest 26.2 build | `26.2.build.127-stable` | `26.2.build.7-beta` (**beta**) | `26.2.build.2633-stable` |
-| Latest 26.3 build | `26.3.build.32-alpha` | — (no 26.3 build yet) | `26.3.build.2639-experimental` |
+| Latest 26.2 build | `26.2.build.129-stable` | `26.2.build.7-beta` (**beta**) | `26.2.build.2633-stable` |
+| Latest 26.3 build | `26.3.build.133-alpha` | — (no 26.3 build yet) | `26.3.build.2642-experimental` |
 | Maven API coordinate | `io.papermc.paper:paper-api` | `dev.folia:folia-api` | `org.purpurmc.purpur:purpur-api` |
 | Plugin opt-in flag | — | `folia-supported: true` required, else the plugin is **not loaded** | — |
 | Vanilla plugins work? | Yes | **Almost none** — Folia's own README puts expectations at 0 | Yes, unchanged (features are off by default) |
@@ -39,7 +39,7 @@ Paper replaced the old `1.21.8-R0.1-SNAPSHOT` Maven/artifact style with a scheme
 
 ```
 <minecraft-version>.build.<number>-<channel>
-       26.2      .build.  127   -stable
+       26.2      .build.  129   -stable
 ```
 
 | Channel | Meaning | Use for |
@@ -50,8 +50,8 @@ Paper replaced the old `1.21.8-R0.1-SNAPSHOT` Maven/artifact style with a scheme
 
 (`recommended` exists in the downloads service but is unused by Paper; it is used by Velocity.)
 
-- **Latest stable API:** `io.papermc.paper:paper-api:26.2.build.127-stable`
-- **Latest 26.3 artifact:** `26.3.build.32-alpha` — 26.3 is alpha only and no stable 26.3 build exists
+- **Latest stable API:** `io.papermc.paper:paper-api:26.2.build.129-stable`
+- **Latest 26.3 artifact:** `26.3.build.133-alpha` — 26.3 is alpha only and no stable 26.3 build exists
 - Maven repository metadata lives at `https://repo.papermc.io/repository/maven-public/io/papermc/paper/paper-api/maven-metadata.xml`; the build/channel list lives at `https://fill.papermc.io/v3/projects/paper`. The old `https://api.papermc.io/v2` downloads API is **sunset** and returns HTTP 410 — do not rely on it. Also note that in the Maven metadata `<latest>`/`<release>` both point at `26.3-pre-2.build.0-alpha`: an **alpha** build that is not even the newest alpha. Parse the version list for the newest `-stable` rather than trusting those tags. `folia-api` has the same defect — its `<release>` is `26.2.build.7-beta`, and Folia has produced no 26.2 stable build at all.
 
 ### Other version facts
@@ -77,7 +77,7 @@ Rules enforced by Paper (`org.bukkit.craftbukkit.util.ApiVersion`):
 - A plugin whose `api-version` is **newer** than the server's API version is refused: `InvalidPluginException: Unsupported API version …`.
 - A plugin below the server's configured floor (`settings.minimum-api` in `bukkit.yml`, default `none`) is refused too.
 - Omitting it makes Paper log `Legacy plugin … does not specify an api-version.` and, on old versions, triggers Legacy Material Support.
-- **Never write the Paper build number** (`26.2.build.127-stable`) or a `1.26.x` value — both are invalid.
+- **Never write the Paper build number** (`26.2.build.129-stable`) or a `1.26.x` value — both are invalid.
 
 Pick the **lowest** `api-version` that supports every API you call. Declaring `26.2` when you only use pre-26.2 API prevents your plugin from loading on 26.1 servers; declaring `26.1` keeps 26.1 + 26.2 compatibility.
 
@@ -93,7 +93,7 @@ Reference: [references/project-setup.md](references/project-setup.md) for comple
     <maven.compiler.release>25</maven.compiler.release>
     <!-- Pin an exact -stable build; Paper labels Maven ranges "Discouraged".
          Gradle may instead use "26.2.build.+" — keep the literal `build` token. -->
-    <paper.api.version>26.2.build.127-stable</paper.api.version>
+    <paper.api.version>26.2.build.129-stable</paper.api.version>
 </properties>
 
 <repositories>
@@ -144,6 +144,7 @@ permissions:
 - `name`: only letters, numbers, underscores, hyphens. No spaces.
 - `api-version`: use `'26.2'` (or lower `26.x` you actually support). See the section above.
 - `main`: must extend `org.bukkit.plugin.java.JavaPlugin`.
+- `commands`: keep only for the legacy path. Commands registered with `registerCommand(...)` need no `commands:` entry, and Paper marked this whole section's runtime API obsolete in 26.3 (see the Commands section below).
 
 For `paper-plugin.yml` format (alternative): see [references/plugin-yml.md](references/plugin-yml.md).
 
@@ -162,8 +163,9 @@ public class YourPlugin extends JavaPlugin {
         instance = this;
         saveDefaultConfig();
         getServer().getPluginManager().registerEvents(new YourListener(), this);
-        getCommand("yourcmd").setExecutor(new YourCommand());
-        getCommand("yourcmd").setTabCompleter(new YourTabCompleter());
+        // Recommended on 26.x: register both the executor and its completions at once.
+        // `getCommand("yourcmd").setExecutor(...)` still works but is obsolete (26.3).
+        registerCommand("yourcmd", "Main command", List.of("yc"), new YourCommand());
         getLogger().info("YourPlugin enabled!");
     }
 
@@ -185,7 +187,7 @@ public class YourPlugin extends JavaPlugin {
 3. Cache layer
 4. Manager classes
 5. Register event listeners
-6. Register commands + tab completers (or `LifecycleEvents.COMMANDS`)
+6. Register commands (via `registerCommand(...)` / `LifecycleEvents.COMMANDS`) — must happen inside `onEnable()`
 7. Start scheduled tasks
 
 **Cleanup order (onDisable):**
@@ -227,29 +229,52 @@ public class PlayerListener implements Listener {
 
 Register: `getServer().getPluginManager().registerEvents(new PlayerListener(), this);`
 
-### Command with Tab Completion
+### Commands
+
+**The classic Bukkit command path is obsolete as of 26.3.** Paper marked `Command`, `CommandExecutor`, `TabCompleter`, `TabExecutor`, `PluginCommand`, `CommandMap`, `SimpleCommandMap`, `PluginCommandYamlParser`, `Bukkit#getCommandMap`/`getPluginCommand`, `Server#getCommandMap`/`getPluginCommand` and `JavaPlugin#onCommand`/`onTabComplete`/`getCommand` with `@ApiStatus.Obsolete(since = "26.3")` (PaperMC/Paper#14281, merged 2026-09-26). Obsolete is weaker than deprecated: it produces no compiler warning and existing plugins keep working, but full deprecation is the stated direction. Paper's own `@apiNote` recommends two replacements:
+
+1. **Brigadier command API** — full control, tree building and typed arguments (`LifecycleEvents.COMMANDS`, `io.papermc.paper.command.brigadier.Commands`).
+2. **`BasicCommand`** — `io.papermc.paper.command.brigadier.BasicCommand`, a functional interface that keeps the familiar `String[] args` style and is converted to Brigadier (`/label <greedy_string>`) at registration. It is available on 26.2 stable, so you can adopt it today.
 
 ```java
-// Main command executor with subcommand routing
-public class MainCommand implements CommandExecutor {
+// BasicCommand: string[] args, registered in one call, no plugin.yml commands: entry needed
+public class MainCommand implements BasicCommand {
     private final Map<String, SubCommand> subCommands = new HashMap<>();
 
-    public MainCommand() {
-        subCommands.put("reload", new ReloadSubCommand());
-        subCommands.put("give", new GiveSubCommand());
+    @Override
+    public void execute(CommandSourceStack source, String[] args) {
+        CommandSender sender = source.getSender();
+        if (args.length == 0) { sender.sendMessage(Component.text("Usage: /cmd <sub>")); return; }
+        SubCommand sub = subCommands.get(args[0].toLowerCase());
+        if (sub == null) { sender.sendMessage(Component.text("Unknown command")); return; }
+        sub.execute(sender, Arrays.copyOfRange(args, 1, args.length));
     }
 
     @Override
+    public Collection<String> suggest(CommandSourceStack source, String[] args) {
+        return List.of("reload", "give");
+    }
+
+    @Override
+    public String permission() { return "yourplugin.use"; }
+}
+```
+
+Register it as `registerCommand("yourcmd", "Main command", List.of("yc"), new MainCommand())` inside `onEnable()`. The four overloads are `(label, BasicCommand)`, `(label, description, BasicCommand)`, `(label, aliases, BasicCommand)` and `(label, description, aliases, BasicCommand)`; `JavaPlugin#getCommand(String)` throws `UnsupportedOperationException` if called for a `paper-plugin.yml` plugin during `onEnable()`, because such commands come from `plugin.yml` rather than from `registerCommand`.
+
+The legacy shape, for existing plugins only:
+
+```java
+public class MainCommand implements CommandExecutor {
+    @Override
     public boolean onCommand(CommandSender sender, Command cmd, String label, String[] args) {
-        if (args.length == 0) { sender.sendMessage("Usage: /cmd <sub>"); return true; }
-        SubCommand sub = subCommands.get(args[0].toLowerCase());
-        if (sub == null) { sender.sendMessage("Unknown command"); return true; }
-        return sub.execute(sender, Arrays.copyOfRange(args, 1, args.length));
+        // ...
+        return true;
     }
 }
 ```
 
-For new code prefer the Paper Brigadier API (`LifecycleEvents.COMMANDS`), which is the supported command path on 26.x. See [references/api-patterns.md](references/api-patterns.md).
+For new code prefer `BasicCommand` or the Brigadier API. See [references/api-patterns.md](references/api-patterns.md).
 
 ### Scheduler (Critical Thread Safety)
 
@@ -329,8 +354,8 @@ Reference: [references/version-matrix.md](references/version-matrix.md) for full
 | 1.21 – 1.21.11 | 1.21 – 1.21.11 | 21 | `1.21` | Hardfork from Spigot |
 | 26.1.1 | 26.1.1 | **25** | `26.1` | Unsupported (support ended 2026-04-11, last build 29 alpha) |
 | 26.1.2 | 26.1.2 | **25** | `26.1` / `26.1.2` | Supported; world storage format change |
-| **26.2** | **26.2** | **25** | **`26.2`** | **Latest stable** (stable since build 83, 2026-07-26; latest build 127, 2026-09-21) — Adventure 5, beds are no longer block entities |
-| 26.3 | 26.3 | 25 | `26.3` | **Paper alpha only** — Minecraft 26.3 "Wilderness Bound" released 2026-09-15; Paper at `26.3.build.32-alpha`, Purpur at `26.3.build.2639-experimental`, Folia has no 26.3 build |
+| **26.2** | **26.2** | **25** | **`26.2`** | **Latest stable** (stable since build 83, 2026-07-26; latest build 129, 2026-09-23) — Adventure 5, beds are no longer block entities |
+| 26.3 | 26.3 | 25 | `26.3` | **Paper alpha only** — Minecraft 26.3 "Wilderness Bound" released 2026-09-15; Paper at `26.3.build.133-alpha`, Purpur at `26.3.build.2642-experimental`, Folia has no 26.3 build |
 
 There is no Paper version literally named "26.1" — the 26.1 line is `26.1.1` and `26.1.2`, while `26.1` is a perfectly valid `api-version` meaning "needs at least the 26.1 API".
 
@@ -345,12 +370,14 @@ There is no Paper version literally named "26.1" — the 26.1 line is `26.1.1` a
 - **Timings** is terminally deprecated — use spark.
 - Enum-like keyed types (Biome, Art, PatternType, …) keep `valueOf`/`values` only for compatibility; use `Registry.get(NamespacedKey)` / `Registry.stream()`.
 - Cube mobs share `AbstractCubeMob` (26.2); `MagmaCube` no longer extends `Slime` and `SlimeSplitEvent#getEntity` returns `AbstractCubeMob`.
+- **Bukkit commands are obsolete** (26.3): the whole `plugin.yml` + `CommandExecutor`/`TabCompleter` path is annotated `@ApiStatus.Obsolete(since = "26.3")`. Nothing breaks yet, but new plugins should use `BasicCommand` or Brigadier. Details in the Commands section above.
 
 **What 26.3 adds, and why to stay on 26.2 for now:**
 - Minecraft 26.3 "Wilderness Bound" (2026-09-15) adds the dappled forest biome, poplars, red shrubs, shelf mushrooms, wool and concrete stairs/slabs, straw beds, cushions and abandoned camps. Protocol 777, data version 5023, still Java 25.
 - Cushions are a new **entity type**, not a block: `org.bukkit.entity.Cushion` extends `Colorable` and `Entity`, so it is dyed and carries a `PersistentDataContainer` like any other entity, and placing one fires `EntityPlaceEvent`.
 - New blocks and items mean new `Material` constants. A JAR compiled against `paper-api:26.3.*` that names a 26.3-only `Material` fails at runtime on a 26.2 server, so keep `api-version` at the oldest line you actually support and keep 26.3-only references behind a version guard.
 - Paper has published no 26.3 news post, migration notes or stable build yet. Track https://jd.papermc.io/paper/26.3/ and https://papermc.io/news/ before adopting it.
+- The **26.3 Javadoc lags the builds**: on 2026-09-28 it reported `26.3.build.49-alpha` while builds were already at 133, and the 26.2 Javadoc was current at `129-stable`. Do not read the current build number off the 26.3 Javadoc, and expect recently added 26.3 API to be missing from it.
 
 **Paper vs Spigot after hardfork:**
 - Existing Spigot API methods continue to work
@@ -370,6 +397,8 @@ There is no Paper version literally named "26.1" — the 26.1 line is `26.1.1` a
 - **API Docs (stable)**: https://jd.papermc.io/paper/26.2/
 - **API Docs (next, alpha)**: https://jd.papermc.io/paper/26.3/
 - **Dev Docs**: https://docs.papermc.io/paper/dev/
+- **Brigadier command API**: https://docs.papermc.io/paper/dev/command-api/basics/introduction/
+- **Basic commands (Bukkit-command replacement)**: https://docs.papermc.io/paper/dev/command-api/misc/basic-command/
 - **Downloads API (v3)**: https://fill.papermc.io/v3/projects/paper
 - **Maven Repository**: https://repo.papermc.io/
 - **Downloads / News**: https://papermc.io/downloads · https://papermc.io/news/

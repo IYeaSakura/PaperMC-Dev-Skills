@@ -224,7 +224,22 @@ public void onEnable() {
 }
 ```
 
+If you only want the classic `String[] args` feel without building a Brigadier tree, use `BasicCommand` (`io.papermc.paper.command.brigadier.BasicCommand`) with `JavaPlugin#registerCommand(...)` — it is available on 26.2 and works for both `plugin.yml` and `paper-plugin.yml` plugins:
+
+```java
+registerCommand("yourcmd", "Description", List.of("yc"), new YourBasicCommand());
+```
+
 The legacy `BukkitBrigadierCommand` / `PaperBrigadier` helpers are deprecated for removal on 26.x.
+
+### `commands:` in plugin.yml is obsolete
+
+In 26.3 Paper annotated the whole `plugin.yml` command path with `@ApiStatus.Obsolete(since = "26.3")` (`Command`, `CommandExecutor`, `TabCompleter`, `TabExecutor`, `PluginCommand`, `CommandMap`, `JavaPlugin#getCommand`/`onCommand`/`onTabComplete`; PaperMC/Paper#14281, merged 2026-09-26):
+
+- It still loads and runs; `@ApiStatus.Obsolete` is informational and produces no compiler warning.
+- Commands registered with `registerCommand(...)` do **not** need a `commands:` entry, so a `paper-plugin.yml` plugin never needed one.
+- `JavaPlugin#getCommand(String)` still requires the `plugin.yml` entry to return non-null, and throws `UnsupportedOperationException` if called from `onEnable()` for a `paper-plugin.yml` plugin.
+- New plugins should use `BasicCommand` or Brigadier instead of adding to `commands:`.
 
 ---
 
@@ -240,7 +255,7 @@ api-version: '1.21'    # legacy 1.21 line only
 
 Rules (from `org.bukkit.craftbukkit.util.ApiVersion` and `CraftMagicNumbers#checkSupported`):
 
-1. The value must be `major.minor` or `major.minor.patch` with **numeric** parts. `26.3.0`, `26.3`, `26.2`, `26.1.2` and `1.20.5` are all valid; `26.2.build.127-stable`, `1.26.2`, `latest` throw `IllegalArgumentException`.
+1. The value must be `major.minor` or `major.minor.patch` with **numeric** parts. `26.3.0`, `26.3`, `26.2`, `26.1.2` and `1.20.5` are all valid; `26.2.build.129-stable`, `1.26.2`, `latest` throw `IllegalArgumentException`.
 2. There is **no allow-list**. The value is only range-checked against the server's API version and the optional `settings.minimum-api` floor in `bukkit.yml` (default `none`).
 3. Newer than the server → `InvalidPluginException: Unsupported API version <value>`; the plugin does not load.
 4. Older than `settings.minimum-api` → `InvalidPluginException: Plugin API version … is lower than the minimum allowed version`.
@@ -316,7 +331,7 @@ This is replaced during build with the actual version from `pom.xml`. Quote it �
 ## Common Mistakes
 
 1. **Forgetting `api-version`** → Legacy Material Support warning
-2. **Using a Paper build id as `api-version`** (`26.2.build.127-stable`) → parsing error; use `'26.2'`
+2. **Using a Paper build id as `api-version`** (`26.2.build.129-stable`) → parsing error; use `'26.2'`
 3. **Assuming `26.1.2` ≡ `26.2`** → they are different `major.minor.patch` triples; `26.1.2` does not satisfy a 26.2 requirement
 4. **Space in `name`** → plugin fails to load
 5. **`main` class typo** → `ClassNotFoundException` on startup

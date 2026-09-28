@@ -17,7 +17,7 @@ Minecraft Java 版的版本编号体系在 2026 年发生变更，由 `1.21.x` �
 | Paper 26.2 的 `api-version` 取值 | `26.1.2` 或 `1.21` | `'26.2'`，依据 `ApiVersion` 解析逻辑说明 `26.1.2` 的语义低于 `26.2` |
 | 插件能否运行于 Folia | 需进行兼容性适配 | 需检查 `folia-supported` 字段，未声明时 Folia 不加载该插件 |
 | 26.2 升级需修改的接口 | 提示注意 API 变更 | 列出 9 项弃用项与 3 项破坏性变更，并给出迁移代码 |
-| 当前最新稳定构建号 | 无可靠来源，可能编造 | `127-stable`，并附版本核验命令 |
+| 当前最新稳定构建号 | 无可靠来源，可能编造 | `129-stable`，并附版本核验命令 |
 
 技能包的作用是将上述精确信息固化为可检索的文档，使模型的输出从推测转为引用。
 
@@ -211,8 +211,8 @@ npx @deepseek-ai/dsh web
 | 项目 | Paper | Folia | Purpur |
 |---|---|---|---|
 | 线程模型 | 单主线程 | 无主线程，按区域并行 | 单主线程 |
-| 最新 26.2 构建 | 127-stable | 7-beta | 2633-stable |
-| 最新 26.3 构建 | 32-alpha | 无 | 2639-experimental |
+| 最新 26.2 构建 | 129-stable | 7-beta | 2633-stable |
+| 最新 26.3 构建 | 133-alpha | 无 | 2642-experimental |
 | 预发布通道命名 | alpha | beta | experimental |
 | 插件声明要求 | 无 | `folia-supported: true` | 无 |
 | 未修改 Paper 插件可用性 | 可用 | 基本不可用 | 可用，行为一致 |
@@ -222,7 +222,7 @@ npx @deepseek-ai/dsh web
 三个平台的依赖坐标不同：
 
 ```kotlin
-compileOnly("io.papermc.paper:paper-api:26.2.build.127-stable")        // Paper
+compileOnly("io.papermc.paper:paper-api:26.2.build.129-stable")        // Paper
 compileOnly("dev.folia:folia-api:26.2.build.7-beta")                  // Folia，groupId 为 dev.folia
 compileOnly("org.purpurmc.purpur:purpur-api:26.2.build.2633-stable")  // Purpur，仓库为 repo.purpurmc.org
 ```
@@ -233,7 +233,7 @@ Purpur 的注意事项为反向兼容问题。依据其官方 FAQ，`purpur.yml`
 
 ## 七、版本时效性维护
 
-文档中所有版本号核实于 2026-09-22。考虑到 Paper 的版本迭代周期，文档提供了版本核验命令：
+文档中所有版本号核实于 2026-09-28。考虑到 Paper 的版本迭代周期，文档提供了版本核验命令：
 
 ```bash
 # Paper：查询最新 stable 构建
@@ -249,9 +249,13 @@ curl -s https://repo.purpurmc.org/snapshots/org/purpurmc/purpur/purpur-api/maven
   | grep -o '<version>[^<]*</version>' | tail -n 3
 ```
 
-需注意 Paper 的 Maven 元数据中 `<latest>` 与 `<release>` 两个标签当前均指向 `26.3-pre-2.build.0-alpha`。该值不仅属于 alpha 通道，而且并非最新的 alpha 构建（最新为 `26.3.build.32-alpha`）；元数据中的版本列表也并非按发布时间排列，`26.3-pre-2.build.0-alpha` 排在列表末尾。若依赖工具直接读取这两个标签或取列表末项进行升级，都会引入预发布版本，应改为解析版本列表并按构建号筛选 `-stable` 后缀。
+需注意 Paper 的 Maven 元数据中 `<latest>` 与 `<release>` 两个标签当前均指向 `26.3-pre-2.build.0-alpha`。该值不仅属于 alpha 通道，而且并非最新的 alpha 构建（最新为 `26.3.build.133-alpha`）；元数据中的版本列表也并非按发布时间排列，`26.3-pre-2.build.0-alpha` 排在列表末尾。若依赖工具直接读取这两个标签或取列表末项进行升级，都会引入预发布版本，应改为解析版本列表并按构建号筛选 `-stable` 后缀。
 
-同样的缺陷出现在另两个分支上：`folia-api` 的 `<latest>` 与 `<release>` 均为 `26.2.build.7-beta`，原因是 Folia 从未发布 26.2 的 stable 构建；Purpur 的 `metadata.latest` 为 `26.3.build.2639-experimental`，其最新构建属于 experimental 通道，而当前稳定目标仍为 `26.2.build.2633-stable`。
+同样的缺陷出现在另两个分支上：`folia-api` 的 `<latest>` 与 `<release>` 均为 `26.2.build.7-beta`，原因是 Folia 从未发布 26.2 的 stable 构建；Purpur 的 `metadata.latest` 为 `26.3.build.2642-experimental`，其最新构建属于 experimental 通道，而当前稳定目标仍为 `26.2.build.2633-stable`。
+
+Javadoc 同样不能当作构建号来源。26.2 的 Javadoc 与构建同步（`26.2.build.129-stable`），但 26.3 的 Javadoc 在同期仍停留在 `26.3.build.49-alpha`，落后实际构建八十余个版本。从页面标题读取当前版本，会得到过时的结论。
+
+版本核验的价值不在于数字本身，而在于数字背后的语义变更。最近一次核对中，Paper 在 26.3 提交中将整套 Bukkit 命令接口标记为 `@ApiStatus.Obsolete(since = "26.3")`，涵盖 `CommandExecutor`、`TabCompleter`、`PluginCommand`、`CommandMap` 与 `JavaPlugin#onCommand`，并在注解中给出两条替代路径：`BasicCommand` 与 Brigadier。该变更不产生编译警告，也不会让现有插件停止加载，但它是方向性的。此类信息不会出现在任何单一页面上，只能通过追踪上游提交获得，而这正是技能包需要持续维护的部分。
 
 ## 八、使用建议与改编
 
